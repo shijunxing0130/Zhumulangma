@@ -1,17 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<layout xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:bind="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/white">
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <android.support.v7.widget.RecyclerView
-        android:id="@+id/recyclerview"
+    <data>
+
+    </data>
+
+    <com.scwang.smartrefresh.layout.SmartRefreshLayout
+        android:id="@+id/refreshLayout"
         android:layout_width="match_parent"
+        app:srlFooterTriggerRate="0"
+        app:srlEnableNestedScrolling="true"
+        app:srlHeaderMaxDragRate="2.0"
         android:layout_height="match_parent"
-        android:overScrollMode="never"
-        android:nestedScrollingEnabled="true"/>
+        app:srlEnableLoadMoreWhenContentNotFull="false">
 
-</FrameLayout>
+        <com.gykj.zhumulangma.common.widget.TRefreshHeader
+            android:layout_width="match_parent"
+            android:layout_height="30dp" />
+
+        <android.support.v7.widget.RecyclerView
+            android:id="@+id/recyclerview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:overScrollMode="never"
+            android:nestedScrollingEnabled="true" />
+
+    </com.scwang.smartrefresh.layout.SmartRefreshLayout>
+</layout>

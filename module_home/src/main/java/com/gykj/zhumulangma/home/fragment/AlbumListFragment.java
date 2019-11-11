@@ -4,39 +4,33 @@ package com.gykj.zhumulangma.home.fragment;
 import android.arch.lifecycle.ViewModelProvider;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.view.View;
 
 import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.alibaba.android.arouter.launcher.ARouter;
 import com.chad.library.adapter.base.BaseQuickAdapter;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
-import com.gykj.zhumulangma.common.event.EventCode;
+import com.gykj.zhumulangma.common.Constants;
+import com.gykj.zhumulangma.common.databinding.CommonLayoutListBinding;
 import com.gykj.zhumulangma.common.event.KeyCode;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.mvvm.view.BaseRefreshMvvmFragment;
-import com.gykj.zhumulangma.common.mvvm.view.status.ListCallback;
+import com.gykj.zhumulangma.common.mvvm.view.status.ListSkeleton;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.gykj.zhumulangma.home.R;
 import com.gykj.zhumulangma.home.adapter.AlbumAdapter;
 import com.gykj.zhumulangma.home.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.home.mvvm.viewmodel.AlbumListViewModel;
 import com.kingja.loadsir.callback.Callback;
-import com.scwang.smartrefresh.layout.SmartRefreshLayout;
 import com.ximalaya.ting.android.opensdk.model.album.Album;
 
-import org.greenrobot.eventbus.EventBus;
-
-import me.yokeyword.fragmentation.ISupportFragment;
 /**
  * Author: Thomas.
  * <br/>Date: 2019/8/14 10:21
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:专辑列表
  */
-@Route(path = AppConstants.Router.Home.F_ALBUM_LIST)
-public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewModel, Album> implements
+@Route(path = Constants.Router.Home.F_ALBUM_LIST)
+public class AlbumListFragment extends BaseRefreshMvvmFragment<CommonLayoutListBinding, AlbumListViewModel, Album> implements
         BaseQuickAdapter.OnItemClickListener {
     //猜你喜欢
     public static final int LIKE = 0;
@@ -52,7 +46,6 @@ public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewMode
     public String mTitle;
     private AlbumAdapter mAlbumAdapter;
 
-    private SmartRefreshLayout refreshLayout;
 
     public AlbumListFragment() {
 
@@ -60,17 +53,15 @@ public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewMode
 
     @Override
     protected int onBindLayout() {
-        return R.layout.common_layout_refresh_loadmore;
+        return R.layout.common_layout_list;
     }
 
     @Override
-    protected void initView(View view) {
-        RecyclerView recyclerView = fd(R.id.recyclerview);
-        recyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
-        recyclerView.setHasFixedSize(true);
+    protected void initView() {
+        mBinding.recyclerview.setLayoutManager(new LinearLayoutManager(mActivity));
+        mBinding.recyclerview.setHasFixedSize(true);
         mAlbumAdapter = new AlbumAdapter(R.layout.home_item_album_line);
-        mAlbumAdapter.bindToRecyclerView(recyclerView);
-        refreshLayout = fd(R.id.refreshLayout);
+        mAlbumAdapter.bindToRecyclerView(mBinding.recyclerview);
         setTitle(new String[]{mTitle});
     }
 
@@ -83,7 +74,7 @@ public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewMode
     @NonNull
     @Override
     protected WrapRefresh onBindWrapRefresh() {
-        return new WrapRefresh(refreshLayout,mAlbumAdapter);
+        return new WrapRefresh(mBinding.refreshLayout, mAlbumAdapter);
     }
 
     @Override
@@ -97,13 +88,11 @@ public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewMode
     public void initViewObservable() {
         mViewModel.getInitAlbumsEvent().observe(this, albums -> mAlbumAdapter.setNewData(albums));
     }
+
     @Override
     public void onItemClick(BaseQuickAdapter adapter, View view, int position) {
-        Object navigation = ARouter.getInstance().build(AppConstants.Router.Home.F_ALBUM_DETAIL)
-                .withLong(KeyCode.Home.ALBUMID, mAlbumAdapter.getItem(position).getId())
-                .navigation();
-        EventBus.getDefault().post(new ActivityEvent(
-                EventCode.Main.NAVIGATE, new NavigateBean(AppConstants.Router.Home.F_ALBUM_DETAIL, (ISupportFragment) navigation)));
+        RouterUtil.navigateTo(mRouter.build(Constants.Router.Home.F_ALBUM_DETAIL)
+                .withLong(KeyCode.Home.ALBUMID, mAlbumAdapter.getItem(position).getId()));
     }
 
     @Override
@@ -117,17 +106,17 @@ public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewMode
     }
 
     @Override
-    protected Integer[] onBindBarRightIcon() {
-        if (mType == ANNOUNCER|| mType == LIKE) {
+    public Integer[] onBindBarRightIcon() {
+        if (mType == ANNOUNCER || mType == LIKE) {
             return null;
         }
         return new Integer[]{R.drawable.ic_common_search};
     }
 
     @Override
-    protected void onRight1Click(View v) {
+    public void onRight1Click(View v) {
         super.onRight1Click(v);
-        navigateTo(AppConstants.Router.Home.F_SEARCH);
+        RouterUtil.navigateTo(Constants.Router.Home.F_SEARCH);
     }
 
     @Override
@@ -137,7 +126,7 @@ public class AlbumListFragment extends BaseRefreshMvvmFragment<AlbumListViewMode
 
 
     @Override
-    protected Callback getInitCallBack() {
-        return new ListCallback();
+    public Callback getInitStatus() {
+        return new ListSkeleton();
     }
 }

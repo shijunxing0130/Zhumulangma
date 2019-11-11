@@ -3,15 +3,12 @@ package com.gykj.zhumulangma.home.mvvm.viewmodel;
 import android.app.Application;
 import android.support.annotation.NonNull;
 
-import com.alibaba.android.arouter.launcher.ARouter;
 import com.blankj.utilcode.util.CollectionUtils;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
-import com.gykj.zhumulangma.common.event.EventCode;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.event.SingleLiveEvent;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.mvvm.model.ZhumulangmaModel;
 import com.gykj.zhumulangma.common.mvvm.viewmodel.BaseRefreshViewModel;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.ximalaya.ting.android.opensdk.constants.DTransferConstants;
 import com.ximalaya.ting.android.opensdk.model.album.Album;
 import com.ximalaya.ting.android.opensdk.model.album.AlbumList;
@@ -20,8 +17,6 @@ import com.ximalaya.ting.android.opensdk.model.banner.BannerV2List;
 import com.ximalaya.ting.android.opensdk.model.track.LastPlayTrackList;
 import com.ximalaya.ting.android.opensdk.model.track.SearchTrackListV2;
 import com.ximalaya.ting.android.opensdk.player.XmPlayerManager;
-
-import org.greenrobot.eventbus.EventBus;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -32,7 +27,6 @@ import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.functions.Function;
-import me.yokeyword.fragmentation.ISupportFragment;
 
 public class FineViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album> {
 
@@ -100,7 +94,7 @@ public class FineViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album>
         getDailyListObservable().doOnSubscribe(d -> getShowLoadingViewEvent().call())
                 .doFinally(() -> getClearStatusEvent().call())
                 .subscribe(r -> {
-                }, e -> e.printStackTrace());
+                }, Throwable::printStackTrace);
     }
 
     private Observable<AlbumList> getDailyListObservable() {
@@ -122,7 +116,7 @@ public class FineViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album>
         getBookListObservable().doOnSubscribe(d -> getShowLoadingViewEvent().call())
                 .doFinally(() -> getClearStatusEvent().call())
                 .subscribe(r -> {
-                }, e -> e.printStackTrace());
+                }, Throwable::printStackTrace);
     }
 
     private Observable<AlbumList> getBookListObservable() {
@@ -145,7 +139,7 @@ public class FineViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album>
         getClassRoomListObservable().doOnSubscribe(d -> getShowLoadingViewEvent().call())
                 .doFinally(() -> getClearStatusEvent().call())
                 .subscribe(r -> {
-                }, e -> e.printStackTrace());
+                }, Throwable::printStackTrace);
     }
 
     private Observable<AlbumList> getClassRoomListObservable() {
@@ -187,14 +181,8 @@ public class FineViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album>
                             break;
                         }
                     }
-                    Object navigation = ARouter.getInstance()
-                            .build(AppConstants.Router.Home.F_PLAY_TRACK).navigation();
-                    if (null != navigation) {
-                        EventBus.getDefault().post(new ActivityEvent(EventCode.Main.NAVIGATE,
-                                new NavigateBean(AppConstants.Router.Home.F_PLAY_TRACK,
-                                        (ISupportFragment) navigation)));
-                    }
-                }, e -> e.printStackTrace());
+                    RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
+                }, Throwable::printStackTrace);
     }
 
     public SingleLiveEvent<List<BannerV2>> getBannerV2Event() {

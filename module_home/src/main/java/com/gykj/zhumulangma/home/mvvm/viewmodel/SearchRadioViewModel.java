@@ -3,28 +3,22 @@ package com.gykj.zhumulangma.home.mvvm.viewmodel;
 import android.app.Application;
 import android.support.annotation.NonNull;
 
-import com.alibaba.android.arouter.launcher.ARouter;
 import com.blankj.utilcode.util.CollectionUtils;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
-import com.gykj.zhumulangma.common.event.EventCode;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.event.SingleLiveEvent;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.mvvm.model.ZhumulangmaModel;
 import com.gykj.zhumulangma.common.mvvm.viewmodel.BaseRefreshViewModel;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.ximalaya.ting.android.opensdk.constants.DTransferConstants;
 import com.ximalaya.ting.android.opensdk.model.live.radio.Radio;
 import com.ximalaya.ting.android.opensdk.model.track.Track;
 import com.ximalaya.ting.android.opensdk.player.XmPlayerManager;
-
-import org.greenrobot.eventbus.EventBus;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import me.yokeyword.fragmentation.ISupportFragment;
 
 /**
  * Author: Thomas.
@@ -47,7 +41,6 @@ public class SearchRadioViewModel extends BaseRefreshViewModel<ZhumulangmaModel,
         map.put(DTransferConstants.SEARCH_KEY, mKeyword);
         map.put(DTransferConstants.PAGE,String.valueOf(curPage));
         mModel.getSearchedRadios(map)
-                .doOnSubscribe(d->getShowInitViewEvent().call())
                 .subscribe(radioList -> {
                     if (CollectionUtils.isEmpty(radioList.getRadios())) {
                         getShowEmptyViewEvent().call();
@@ -95,17 +88,20 @@ public class SearchRadioViewModel extends BaseRefreshViewModel<ZhumulangmaModel,
                 .subscribe(trackList -> {
                     XmPlayerManager.getInstance(getApplication()).playList(trackList,
                             trackList.getTracks().indexOf(track));
-                    Object navigation = ARouter.getInstance()
-                            .build(AppConstants.Router.Home.F_PLAY_TRACK).navigation();
-                    if (null != navigation) {
-                        EventBus.getDefault().post(new ActivityEvent(EventCode.Main.NAVIGATE,
-                                new NavigateBean(AppConstants.Router.Home.F_PLAY_TRACK,
-                                        (ISupportFragment) navigation)));
-                    }
-                }, e -> e.printStackTrace());
+                    RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
+                }, Throwable::printStackTrace);
     }
 
-
+    public void playRadio(Radio radio) {
+        mModel.getSchedulesSource(radio)
+                .doOnSubscribe(d -> getShowLoadingViewEvent().call())
+                .doFinally(() -> getClearStatusEvent().call())
+                .subscribe(schedules ->
+                {
+                    XmPlayerManager.getInstance(getApplication()).playSchedule(schedules, -1);
+                    RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_RADIIO);
+                }, Throwable::printStackTrace);
+    }
     public SingleLiveEvent<List<Radio>> getInitRadiosEvent() {
         return mInitRadiosEvent =createLiveData(mInitRadiosEvent);
     }

@@ -1,39 +1,43 @@
 package com.gykj.zhumulangma.main;
 
 import android.Manifest;
+import android.arch.lifecycle.Observer;
 import android.arch.lifecycle.ViewModelProvider;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.blankj.utilcode.util.ActivityUtils;
 import com.blankj.utilcode.util.AppUtils;
-import com.blankj.utilcode.util.SPUtils;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.aop.LoginHelper;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
 import com.gykj.zhumulangma.common.bean.PlayHistoryBean;
 import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.mvvm.view.BaseMvvmActivity;
-import com.gykj.zhumulangma.common.mvvm.view.status.LoadingCallback;
+import com.gykj.zhumulangma.common.mvvm.view.status.LoadingStatus;
 import com.gykj.zhumulangma.common.util.PermissionPageUtil;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.gykj.zhumulangma.common.util.ToastUtil;
 import com.gykj.zhumulangma.common.widget.GlobalPlay;
 import com.gykj.zhumulangma.main.dialog.SplashAdPopup;
 import com.gykj.zhumulangma.main.fragment.MainFragment;
 import com.gykj.zhumulangma.main.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.main.mvvm.viewmodel.MainViewModel;
+import com.kingja.loadsir.core.LoadLayout;
 import com.lxj.xpopup.XPopup;
 import com.lxj.xpopup.interfaces.SimpleCallback;
+import com.next.easynavigation.utils.NavigationUtil;
 import com.tbruyelle.rxpermissions2.RxPermissions;
 import com.umeng.socialize.ShareAction;
 import com.umeng.socialize.UMShareAPI;
@@ -42,7 +46,6 @@ import com.umeng.socialize.bean.SHARE_MEDIA;
 import com.umeng.socialize.media.UMImage;
 import com.umeng.socialize.media.UMWeb;
 import com.umeng.socialize.shareboard.ShareBoardConfig;
-import com.ximalaya.ting.android.opensdk.datatrasfer.AccessTokenManager;
 import com.ximalaya.ting.android.opensdk.model.PlayableModel;
 import com.ximalaya.ting.android.opensdk.model.advertis.Advertis;
 import com.ximalaya.ting.android.opensdk.model.advertis.AdvertisList;
@@ -55,37 +58,28 @@ import com.ximalaya.ting.android.opensdk.player.service.XmPlayListControl;
 import com.ximalaya.ting.android.opensdk.player.service.XmPlayerException;
 import com.ximalaya.ting.android.opensdk.util.BaseUtil;
 
-import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
 
-import me.yokeyword.fragmentation.ISupportFragment;
 import me.yokeyword.fragmentation.anim.DefaultNoAnimator;
 import me.yokeyword.fragmentation.anim.FragmentAnimator;
 
 
-@Route(path = AppConstants.Router.Main.A_MAIN)
+@Route(path = Constants.Router.Main.A_MAIN)
 public class MainActivity extends BaseMvvmActivity<MainViewModel> implements View.OnClickListener,
         MainFragment.onRootShowListener {
     private XmPlayerManager mPlayerManager = XmPlayerManager.getInstance(this);
     private PlayHistoryBean mHistoryBean;
-    private Handler mHandler = new Handler();
-    private GlobalPlay globalPlay;
-
-
-    @Override
-    protected int onBindLayout() {
-        return R.layout.main_activity_main;
-    }
+    private GlobalPlay globalplay;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         //清除全屏显示
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        //去除背景色,避免过度绘制
+        setTheme(R.style.NullTheme);
         super.onCreate(savedInstanceState);
         initAd();
-        //全局白色背景
-        setTheme(R.style.NullTheme);
         //申请权限
         new RxPermissions(this).request(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -110,47 +104,29 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
      * 显示广告
      */
     private void initAd() {
-        long adOffset = System.currentTimeMillis() - SPUtils.getInstance().getLong(AppConstants.SP.AD_TIME, 0);
-        //显示广告
-        if (adOffset > 5 * 60 * 1000 && new File(getFilesDir().getAbsolutePath() + AppConstants.Default.AD_NAME)
-                .exists()) {
-            new XPopup.Builder(this).customAnimator(new SplashAdPopup.AlphaAnimator())
-                    .setPopupCallback(new SimpleCallback() {
-                        @Override
-                        public void onDismiss() {
-                            super.onDismiss();
-                            SPUtils.getInstance().put(AppConstants.SP.AD_TIME, System.currentTimeMillis());
-                            mViewModel.getBing();
-                        }
-
-                        @Override
-                        public boolean onBackPressed() {
-                            ActivityUtils.startHomeActivity();
-                            return true;
-                        }
-                    })
-                    .asCustom(new SplashAdPopup(this)).show();
-        } else if (!new File(getFilesDir().getAbsolutePath() + AppConstants.Default.AD_NAME)
-                .exists()) {
-            mViewModel.getBing();
-        }
+        mViewModel.initAd();
     }
 
     @Override
     public void initView() {
-        setSwipeBackEnable(false);
+        //手动添加布局,减少布局层级
+        globalplay = new GlobalPlay(this);
+        globalplay.setRadius(NavigationUtil.dip2px(this, 19));
+        globalplay.setBarWidth(NavigationUtil.dip2px(this, 2));
         if (findFragment(MainFragment.class) == null) {
             MainFragment mainFragment = new MainFragment();
             mainFragment.setShowListener(this);
-            loadRootFragment(R.id.fl_container, mainFragment);
+            loadRootFragment(android.R.id.content, mainFragment);
         }
-        globalPlay = fd(R.id.gp);
-
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(NavigationUtil.dip2px(this, 50), NavigationUtil.dip2px(this, 50));
+        layoutParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
+        LoadLayout loadLayout = mBaseLoadService.getLoadLayout();
+        ((ViewGroup) loadLayout.getParent().getParent()).addView(globalplay, layoutParams);
     }
 
     @Override
     public void initListener() {
-        globalPlay.setOnClickListener(this);
+        globalplay.setOnClickListener(this);
         mPlayerManager.addPlayerStatusListener(playerStatusListener);
         mPlayerManager.addAdsStatusListener(adsStatusListener);
     }
@@ -163,7 +139,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
                 if (null == currSoundIgnoreKind) {
                     return;
                 }
-                globalPlay.play(TextUtils.isEmpty(currSoundIgnoreKind.getCoverUrlSmall())
+                globalplay.play(TextUtils.isEmpty(currSoundIgnoreKind.getCoverUrlSmall())
                         ? currSoundIgnoreKind.getAlbum().getCoverUrlLarge() : currSoundIgnoreKind.getCoverUrlSmall());
             } else {
                 mViewModel.getLastSound();
@@ -174,41 +150,56 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
 
     @Override
     public void initViewObservable() {
-        mViewModel.getHistorySingleLiveEvent().observe(this, bean -> {
+        mViewModel.getHistoryEvent().observe(this, bean -> {
             mHistoryBean = bean;
             if (bean.getKind().equals(PlayableModel.KIND_TRACK)) {
-                globalPlay.setImage(TextUtils.isEmpty(bean.getTrack().getCoverUrlSmall())
+                globalplay.setImage(TextUtils.isEmpty(bean.getTrack().getCoverUrlSmall())
                         ? bean.getTrack().getAlbum().getCoverUrlLarge() : bean.getTrack().getCoverUrlSmall());
-                globalPlay.setProgress(1.0f * bean.getPercent() / 100);
+                globalplay.setProgress(1.0f * bean.getPercent() / 100);
             } else {
-                globalPlay.setImage(bean.getSchedule().getRelatedProgram().getBackPicUrl());
+                globalplay.setImage(bean.getSchedule().getRelatedProgram().getBackPicUrl());
             }
         });
-        mViewModel.getCoverSingleLiveEvent().observe(this, s -> globalPlay.play(s));
-    }
+        mViewModel.getCoverEvent().observe(this, s -> globalplay.play(s));
+        mViewModel.getShowAdEvent().observe(this, new Observer<Void>() {
+            @Override
+            public void onChanged(@Nullable Void aVoid) {
+                new XPopup.Builder(MainActivity.this).customAnimator(new SplashAdPopup.AlphaAnimator())
+                        .setPopupCallback(new SimpleCallback() {
+                            @Override
+                            public void onDismiss() {
+                                super.onDismiss();
+                                mViewModel.adDissmiss();
+                            }
 
-    @Override
-    protected boolean enableSimplebar() {
-        return false;
+                            @Override
+                            public boolean onBackPressed() {
+                                ActivityUtils.startHomeActivity();
+                                return true;
+                            }
+                        })
+                        .asCustom(new SplashAdPopup(MainActivity.this)).show();
+            }
+        });
     }
 
 
     @Override
     public void onClick(View v) {
-        if (v == globalPlay) {
+        if (v == globalplay) {
             if (null == mPlayerManager.getCurrSound(true)) {
                 if (mHistoryBean == null) {
-                    navigateTo(AppConstants.Router.Home.F_RANK);
+                    RouterUtil.navigateTo(Constants.Router.Home.F_RANK);
                 } else {
                     mViewModel.play(mHistoryBean);
                 }
             } else {
                 mPlayerManager.play();
                 if (mPlayerManager.getCurrSound().getKind().equals(PlayableModel.KIND_TRACK)) {
-                    navigateTo(AppConstants.Router.Home.F_PLAY_TRACK);
+                    RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
 
                 } else if (mPlayerManager.getCurrSound().getKind().equals(PlayableModel.KIND_SCHEDULE)) {
-                    navigateTo(AppConstants.Router.Home.F_PLAY_RADIIO);
+                    RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_RADIIO);
                 }
             }
         }
@@ -217,9 +208,9 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
     @Override
     public void onRootShow(boolean isVisible) {
         if (isVisible)
-            globalPlay.setBackgroundColor(Color.TRANSPARENT);
+            globalplay.setBackgroundColor(Color.TRANSPARENT);
         else
-            globalPlay.setBackground(getResources().getDrawable(R.drawable.shap_common_widget_play));
+            globalplay.setBackground(getResources().getDrawable(R.drawable.shap_main_globalplay));
     }
 
 
@@ -238,7 +229,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
                 e.printStackTrace();
             }
         }
-        globalPlay.setProgress((float) cur / (float) dur);
+        globalplay.setProgress((float) cur / (float) dur);
     }
 
 
@@ -249,7 +240,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
 
     @Override
     public ViewModelProvider.Factory onBindViewModelFactory() {
-        return ViewModelFactory.getInstance(mApplication);
+        return ViewModelFactory.getInstance(getApplication());
     }
 
 
@@ -258,7 +249,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
     @Override
     public void onBackPressedSupport() {
         //如果正在显示loading,则清除
-        if (mBaseLoadService.getCurrentCallback() == LoadingCallback.class) {
+        if (mBaseLoadService.getCurrentCallback() == LoadingStatus.class) {
             clearStatus();
             return;
         }
@@ -278,62 +269,24 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
     public void onEvent(ActivityEvent event) {
         super.onEvent(event);
         switch (event.getCode()) {
-            case EventCode.Main.NAVIGATE:
-                NavigateBean navigateBean = (NavigateBean) event.getData();
-                if (null == navigateBean.fragment) {
-                    return;
-                }
-                switch (navigateBean.path) {
-                    case AppConstants.Router.User.F_MESSAGE:
-                        //登录拦截
-                        if (!AccessTokenManager.getInstanse().hasLogin()) {
-                            LoginHelper.getInstance().login(this);
-                        } else {
-                            start(navigateBean.fragment);
-                        }
-                        break;
-                    case AppConstants.Router.Home.F_PLAY_TRACK:
-                    case AppConstants.Router.Home.F_PLAY_RADIIO:
-                        extraTransaction().setCustomAnimations(
-                                com.gykj.zhumulangma.common.R.anim.push_bottom_in,
-                                com.gykj.zhumulangma.common.R.anim.no_anim,
-                                com.gykj.zhumulangma.common.R.anim.no_anim,
-                                com.gykj.zhumulangma.common.R.anim.push_bottom_out).start(
-                                navigateBean.fragment, ISupportFragment.SINGLETASK);
-                        break;
-                    default:
-                        if (navigateBean.extraTransaction != null) {
-                            navigateBean.extraTransaction.start(navigateBean.fragment, navigateBean.launchMode);
-                        } else {
-                            start(navigateBean.fragment, navigateBean.launchMode);
-                        }
-                        break;
-                }
-                break;
             case EventCode.Main.HIDE_GP:
-                globalPlay.hide();
+                globalplay.hide();
                 break;
             case EventCode.Main.SHOW_GP:
-                globalPlay.show();
-                break;
-            case EventCode.Main.LOGIN:
-                LoginHelper.getInstance().logout();
+                globalplay.show();
                 break;
             case EventCode.Main.SHARE:
-
                 ShareBoardConfig config = new ShareBoardConfig();
                 config.setMenuItemBackgroundShape(ShareBoardConfig.BG_SHAPE_CIRCULAR);
                 config.setCancelButtonVisibility(true);
                 config.setTitleVisibility(false);
-                config.setCancelButtonVisibility(false);
+                config.setCancelButtonVisibility(true);
                 config.setIndicatorVisibility(false);
-
                 ShareAction action = (ShareAction) event.getData();
-
                 if (action == null) {
                     UMWeb web = new UMWeb("https://github.com/TanZhiL/Zhumulangma");
                     web.setTitle("珠穆朗玛听");//标题
-                    web.setThumb(new UMImage(this, R.drawable.common_launcher_ting));  //缩略图
+                    web.setThumb(new UMImage(this, R.drawable.third_launcher_ting));  //缩略图
                     web.setDescription("珠穆朗玛听");//描述
                     action = new ShareAction(this).withMedia(web);
                 }
@@ -348,6 +301,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
         }
     }
 
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -361,7 +315,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mHandler.removeCallbacksAndMessages(null);
+
         mPlayerManager.removePlayerStatusListener(playerStatusListener);
         mPlayerManager.removeAdsStatusListener(adsStatusListener);
         UMShareAPI.get(this).release();
@@ -380,18 +334,18 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
             if (null == currSoundIgnoreKind) {
                 return;
             }
-            globalPlay.play(TextUtils.isEmpty(currSoundIgnoreKind.getCoverUrlSmall())
+            globalplay.play(TextUtils.isEmpty(currSoundIgnoreKind.getCoverUrlSmall())
                     ? currSoundIgnoreKind.getAlbum().getCoverUrlLarge() : currSoundIgnoreKind.getCoverUrlSmall());
         }
 
         @Override
         public void onPlayPause() {
-            globalPlay.pause();
+            globalplay.pause();
         }
 
         @Override
         public void onPlayStop() {
-            globalPlay.pause();
+            globalplay.pause();
         }
 
         @Override
@@ -448,7 +402,7 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
 
         @Override
         public void onAdsStartBuffering() {
-            globalPlay.setProgress(0);
+            globalplay.setProgress(0);
         }
 
         @Override
@@ -460,9 +414,9 @@ public class MainActivity extends BaseMvvmActivity<MainViewModel> implements Vie
         public void onStartPlayAds(Advertis advertis, int i) {
             String imageUrl = advertis.getImageUrl();
             if (TextUtils.isEmpty(imageUrl)) {
-                globalPlay.play(R.drawable.notification_default);
+                globalplay.play(R.drawable.notification_default);
             } else {
-                globalPlay.play(imageUrl);
+                globalplay.play(imageUrl);
             }
         }
 

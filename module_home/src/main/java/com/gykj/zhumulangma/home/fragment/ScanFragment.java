@@ -2,22 +2,21 @@ package com.gykj.zhumulangma.home.fragment;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.view.View;
 
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.alibaba.android.arouter.launcher.ARouter;
 import com.blankj.utilcode.util.BarUtils;
 import com.blankj.utilcode.util.RegexUtils;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
+import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.KeyCode;
 import com.gykj.zhumulangma.common.event.RequestCode;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.mvvm.view.BaseFragment;
 import com.gykj.zhumulangma.common.util.ToastUtil;
 import com.gykj.zhumulangma.home.R;
+import com.gykj.zhumulangma.home.databinding.HomeFragmentScanBinding;
 import com.luck.picture.lib.PictureSelector;
 import com.luck.picture.lib.config.PictureMimeType;
 import com.luck.picture.lib.entity.LocalMedia;
@@ -28,7 +27,6 @@ import org.greenrobot.eventbus.EventBus;
 import java.util.List;
 
 import cn.bingoogolapple.qrcode.core.QRCodeView;
-import cn.bingoogolapple.qrcode.zxing.ZXingView;
 import me.yokeyword.fragmentation.ISupportFragment;
 
 /**
@@ -37,10 +35,9 @@ import me.yokeyword.fragmentation.ISupportFragment;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:扫一扫
  */
-@Route(path = AppConstants.Router.Home.F_SCAN)
-public class ScanFragment extends BaseFragment implements View.OnClickListener {
+@Route(path = Constants.Router.Home.F_SCAN)
+public class ScanFragment extends BaseFragment<HomeFragmentScanBinding> implements View.OnClickListener {
 
-    private ZXingView scanView;
     private boolean isLight;
 
     @Override
@@ -49,67 +46,66 @@ public class ScanFragment extends BaseFragment implements View.OnClickListener {
     }
 
     @Override
-    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        setSwipeBackEnable(false);
+    protected boolean enableSwipeBack() {
+        return false;
     }
 
     @Override
-    protected void initView(View view) {
+    protected void initView() {
         if (StatusBarUtils.supportTransparentStatusBar()) {
-            fd(R.id.fl_title).setPadding(0, BarUtils.getStatusBarHeight(), 0, 0);
+            mBinding.flTitle.setPadding(0, BarUtils.getStatusBarHeight(), 0, 0);
         }
-        scanView = fd(R.id.zxingview);
-        scanView.setDelegate(delegate);
+        mBinding.zxingview.setDelegate(delegate);
     }
 
     @Override
     public void initListener() {
         super.initListener();
-        fd(R.id.iv_pop).setOnClickListener(this);
-        fd(R.id.tv_pic).setOnClickListener(this);
-        fd(R.id.tv_on).setOnClickListener(this);
-        fd(R.id.iv_on).setOnClickListener(this);
-        fd(R.id.tv_off).setOnClickListener(this);
-        fd(R.id.iv_off).setOnClickListener(this);
+        mBinding.ivPop.setOnClickListener(this);
+        mBinding.tvPic.setOnClickListener(this);
+        mBinding.tvOn.setOnClickListener(this);
+        mBinding.ivOn.setOnClickListener(this);
+        mBinding.tvOff.setOnClickListener(this);
+        mBinding.ivOff.setOnClickListener(this);
     }
 
     @Override
     public void initData() {
-        scanView.setVisibility(View.VISIBLE);
+        mBinding.zxingview.setVisibility(View.VISIBLE);
+        mBinding.clContent.setBackground(null);
     }
 
     private QRCodeView.Delegate delegate = new QRCodeView.Delegate() {
         @Override
         public void onScanQRCodeSuccess(String result) {
-            if(null==result){
-                ToastUtil.showToast(ToastUtil.LEVEL_W,"未发现二维码/条码");
-                scanView.startSpot();
+            if (null == result) {
+                ToastUtil.showToast(ToastUtil.LEVEL_W, "未发现二维码/条码");
+                mBinding.zxingview.startSpot();
                 return;
             }
             if (RegexUtils.isURL(result)) {
-                Object navigation = ARouter.getInstance().build(AppConstants.Router.Discover.F_WEB)
+                Object navigation = mRouter.build(Constants.Router.Discover.F_WEB)
                         .withString(KeyCode.Discover.PATH, result)
                         .navigation();
-                if(navigation!=null){
+                if (navigation != null) {
                     startWithPop((ISupportFragment) navigation);
                 }
             } else {
                 new AlertDialog.Builder(mActivity)
                         .setTitle("扫描结果")
                         .setMessage(result)
-                        .setPositiveButton("确定", (dialog1, which) -> scanView.startSpot()).show();
+                        .setPositiveButton("确定", (dialog1, which) -> mBinding.zxingview.startSpot()).show();
             }
         }
 
         @Override
         public void onCameraAmbientBrightnessChanged(boolean isDark) {
             if (isDark) {
-                fd(R.id.gp_on).setVisibility(View.VISIBLE);
-                fd(R.id.gp_off).setVisibility(View.GONE);
+                mBinding.gpOn.setVisibility(View.VISIBLE);
+                mBinding.gpOff.setVisibility(View.GONE);
             } else {
-                fd(R.id.gp_off).setVisibility(isLight ? View.VISIBLE : View.GONE);
-                fd(R.id.gp_on).setVisibility(View.GONE);
+                mBinding.gpOff.setVisibility(isLight ? View.VISIBLE : View.GONE);
+                mBinding.gpOn.setVisibility(View.GONE);
             }
         }
 
@@ -120,22 +116,21 @@ public class ScanFragment extends BaseFragment implements View.OnClickListener {
     };
 
     @Override
-    protected boolean enableSimplebar() {
+    public boolean enableSimplebar() {
         return false;
     }
 
     @Override
     public void onStart() {
         super.onStart();
-        scanView.startCamera(); // 打开后置摄像头开始预览，但是并未开始识别
-        scanView.startSpotAndShowRect(); // 显示扫描框，并开始识别
+        mBinding.zxingview.startSpotAndShowRect(); // 显示扫描框，并开始识别
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        if (scanView != null) {
-            scanView.stopCamera();
+        if (mBinding.zxingview != null) {
+            mBinding.zxingview.stopCamera();
         }
     }
 
@@ -159,8 +154,8 @@ public class ScanFragment extends BaseFragment implements View.OnClickListener {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (scanView != null)
-            scanView.onDestroy();
+        if (mBinding.zxingview != null)
+            mBinding.zxingview.onDestroy();
     }
 
     @Override
@@ -176,15 +171,15 @@ public class ScanFragment extends BaseFragment implements View.OnClickListener {
         } else if (id == R.id.iv_pop) {
             pop();
         } else if (id == R.id.iv_on || id == R.id.tv_on) {
-            scanView.openFlashlight();
-            fd(R.id.gp_on).setVisibility(View.GONE);
-            fd(R.id.gp_off).setVisibility(View.VISIBLE);
+            mBinding.zxingview.openFlashlight();
+            mBinding.gpOn.setVisibility(View.GONE);
+            mBinding.gpOff.setVisibility(View.VISIBLE);
             isLight = true;
         } else if (id == R.id.iv_off || id == R.id.tv_off) {
-            scanView.closeFlashlight();
+            mBinding.zxingview.closeFlashlight();
             isLight = false;
-            fd(R.id.gp_on).setVisibility(View.GONE);
-            fd(R.id.gp_off).setVisibility(View.GONE);
+            mBinding.gpOn.setVisibility(View.GONE);
+            mBinding.gpOff.setVisibility(View.GONE);
         }
     }
 
@@ -201,7 +196,7 @@ public class ScanFragment extends BaseFragment implements View.OnClickListener {
                     // 2.media.getCutPath();为裁剪后path，需判断media.isCut();是否为true  注意：音视频除外
                     // 3.media.getCompressPath();为压缩后path，需判断media.isCompressed();是否为true  注意：音视频除外
                     // 如果裁剪并压缩了，以取压缩路径为准，因为是先裁剪后压缩的
-                    scanView.decodeQRCode(mediaList.get(0).getPath());
+                    mBinding.zxingview.decodeQRCode(mediaList.get(0).getPath());
                     break;
             }
         }

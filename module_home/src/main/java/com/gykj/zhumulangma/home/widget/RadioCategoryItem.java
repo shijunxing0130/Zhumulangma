@@ -1,20 +1,12 @@
 package com.gykj.zhumulangma.home.widget;
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.util.AttributeSet;
 
 import com.alibaba.android.arouter.launcher.ARouter;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
-import com.gykj.zhumulangma.common.event.EventCode;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.event.KeyCode;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
-import com.gykj.zhumulangma.home.R;
-
-import org.greenrobot.eventbus.EventBus;
-
-import me.yokeyword.fragmentation.ISupportFragment;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 
 /**
  * Author: Thomas.
@@ -23,26 +15,13 @@ import me.yokeyword.fragmentation.ISupportFragment;
  * <br/>Description:
  */
 public class RadioCategoryItem extends android.support.v7.widget.AppCompatTextView {
-    private int categoryId;
     public RadioCategoryItem(Context context, AttributeSet attrs) {
         super(context, attrs);
-        TypedArray typedArray=context.obtainStyledAttributes(attrs, R.styleable.RadioCategoryItem);
-        getAttrs(typedArray);
-        typedArray.recycle();
 
-        this.setOnClickListener(view -> {
-
-            Object o = ARouter.getInstance().build(AppConstants.Router.Home.F_RADIO_LIST)
-                    .withInt(KeyCode.Home.TYPE, categoryId)
-                    .withString(KeyCode.Home.TITLE,getText().toString())
-                    .navigation();
-            EventBus.getDefault().post(new ActivityEvent(
-                    EventCode.Main.NAVIGATE,new NavigateBean(AppConstants.Router.Home.F_RADIO_LIST, (ISupportFragment) o)));
-        });
-    }
-
-    private void getAttrs(TypedArray typedArray) {
-        categoryId=typedArray.getInt(R.styleable.RadioCategoryItem_rci_id,5);
+        this.setOnClickListener(view ->
+                RouterUtil.navigateTo(ARouter.getInstance().build(Constants.Router.Home.F_RADIO_LIST)
+                        .withInt(KeyCode.Home.TYPE, Integer.parseInt(getTag().toString()))
+                        .withString(KeyCode.Home.TITLE, getText().toString())));
     }
 
 }

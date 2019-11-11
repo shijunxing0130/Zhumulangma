@@ -1,12 +1,19 @@
 package com.gykj.zhumulangma.common;
 
+import android.app.Activity;
 import android.app.Application;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.os.Bundle;
 import android.support.multidex.MultiDex;
 
+import com.gykj.thomas.third.ThirdHelper;
+import com.gykj.zhumulangma.common.aop.PointHelper;
 import com.gykj.zhumulangma.common.bean.PlayHistoryBean;
+import com.gykj.zhumulangma.common.db.DBManager;
+import com.gykj.zhumulangma.common.net.RxAdapter;
 import com.gykj.zhumulangma.common.widget.TRefreshHeader;
+import com.noober.background.BackgroundLibrary;
 import com.scwang.smartrefresh.layout.SmartRefreshLayout;
 import com.scwang.smartrefresh.layout.footer.ClassicsFooter;
 import com.tencent.bugly.beta.Beta;
@@ -54,33 +61,38 @@ public class App extends Application {
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
-        MultiDex.install(mApplication);
-        Beta.installTinker();
+        if (BaseUtil.isMainProcess(this)) {
+            MultiDex.install(mApplication);
+            Beta.installTinker();
+        }
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
         mApplication = this;
-        if(BaseUtil.isMainProcess(this)){
-            AppHelper.getInstance(this)
+        if (BaseUtil.isMainProcess(this)) {
+            ThirdHelper.getInstance(this)
                     .initLeakCanary()
                     .initFragmentation(false)
                     .initSpeech()
-                    .initLog()
                     .initAgentWebX5()
-                    .initXmly()
-                    .initAspectj()
-                    .initGreenDao()
+                    .initAspectj(new PointHelper(this))
                     .initUM()
                     .initRouter()
                     .initUtils()
-                    .initBugly()
                     .initCrashView()
-                    .initXmlyPlayer()
+                    .initBugly(false);
+            AppHelper.getInstance(this)
+                    .initLog()
+                    .initXmly()
+                    .initNet()
                     .initXmlyDownloader();
             XmPlayerManager.getInstance(this).addPlayerStatusListener(playerStatusListener);
+            registerActivityLifecycleCallbacks(new BLActivityLifecycleRegister());
         }
+        AppHelper.getInstance(this)
+                .initXmlyPlayer();
     }
 
 
@@ -103,8 +115,12 @@ public class App extends Application {
                 }
                 if (currSound.getKind().equals(PlayableModel.KIND_SCHEDULE)) {
                     Schedule schedule = (Schedule) currSound;
-                    AppHelper.getDaoSession().insertOrReplace(new PlayHistoryBean(currSound.getDataId(), schedule.getRadioId(), currSound.getKind(),
-                            System.currentTimeMillis(), schedule));
+                    DBManager.getInstance().insert(new PlayHistoryBean(currSound.getDataId(),
+                            schedule.getRadioId(), currSound.getKind(), System.currentTimeMillis(), schedule))
+                            .compose(RxAdapter.exceptionTransformer())
+                            .compose(RxAdapter.schedulersTransformer())
+                            .subscribe(r -> {
+                            }, Throwable::printStackTrace);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -115,7 +131,7 @@ public class App extends Application {
         public void onPlayPause() {
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (null != notificationManager) {
-                notificationManager.cancel(AppConstants.Third.XIMALAYA_NOTIFICATION);
+                notificationManager.cancel(Constants.Third.XIMALAYA_NOTIFICATION);
             }
         }
 
@@ -165,9 +181,13 @@ public class App extends Application {
                     Track track = (Track) currSound;
                     int currPos = XmPlayerManager.getInstance(App.this).getPlayCurrPositon();
                     int duration = XmPlayerManager.getInstance(App.this).getDuration();
-                    AppHelper.getDaoSession().insertOrReplace(new PlayHistoryBean(currSound.getDataId(), track.getAlbum().getAlbumId(),
-                            currSound.getKind(), 100 * currPos / duration,
-                            System.currentTimeMillis(), track));
+                    DBManager.getInstance().insert(new PlayHistoryBean(currSound.getDataId(),
+                            track.getAlbum().getAlbumId(), currSound.getKind(), 100 * currPos / duration,
+                            System.currentTimeMillis(), track))
+                            .compose(RxAdapter.exceptionTransformer())
+                            .compose(RxAdapter.schedulersTransformer())
+                            .subscribe(r -> {
+                            }, Throwable::printStackTrace);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -179,4 +199,41 @@ public class App extends Application {
             return false;
         }
     };
+
+    public class BLActivityLifecycleRegister implements Application.ActivityLifecycleCallbacks {
+        @Override
+        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+            BackgroundLibrary.inject(activity);
+        }
+
+        @Override
+        public void onActivityStarted(Activity activity) {
+
+        }
+
+        @Override
+        public void onActivityResumed(Activity activity) {
+
+        }
+
+        @Override
+        public void onActivityPaused(Activity activity) {
+
+        }
+
+        @Override
+        public void onActivityStopped(Activity activity) {
+
+        }
+
+        @Override
+        public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+
+        }
+
+        @Override
+        public void onActivityDestroyed(Activity activity) {
+
+        }
+    }
 }

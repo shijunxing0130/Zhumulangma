@@ -1,10 +1,13 @@
 package com.gykj.zhumulangma.common.mvvm.view;
 
+import android.app.Application;
+import android.databinding.DataBindingUtil;
+import android.databinding.ViewDataBinding;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
-import android.support.annotation.IdRes;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -18,34 +21,27 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.alibaba.android.arouter.launcher.ARouter;
+import com.blankj.utilcode.util.BarUtils;
 import com.blankj.utilcode.util.CollectionUtils;
+import com.gykj.thomas.third.ThirdHelper;
 import com.gykj.zhumulangma.common.App;
-import com.gykj.zhumulangma.common.AppHelper;
 import com.gykj.zhumulangma.common.R;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
-import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.FragmentEvent;
-import com.gykj.zhumulangma.common.mvvm.view.status.BlankCallback;
-import com.gykj.zhumulangma.common.mvvm.view.status.EmptyCallback;
-import com.gykj.zhumulangma.common.mvvm.view.status.ErrorCallback;
-import com.gykj.zhumulangma.common.mvvm.view.status.LoadingCallback;
+import com.gykj.zhumulangma.common.mvvm.view.status.LoadingStatus;
 import com.kingja.loadsir.callback.Callback;
 import com.kingja.loadsir.callback.SuccessCallback;
 import com.kingja.loadsir.core.LoadService;
 import com.kingja.loadsir.core.LoadSir;
+import com.wuhenzhizao.titlebar.statusbar.StatusBarUtils;
 import com.wuhenzhizao.titlebar.widget.CommonTitleBar;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
-import java.util.List;
-
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import me.yokeyword.fragmentation.ExtraTransaction;
-import me.yokeyword.fragmentation.ISupportFragment;
+import io.reactivex.functions.Consumer;
 import me.yokeyword.fragmentation.anim.DefaultHorizontalAnimator;
 import me.yokeyword.fragmentation.anim.FragmentAnimator;
 
@@ -56,54 +52,28 @@ import me.yokeyword.fragmentation.anim.FragmentAnimator;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:Fragment基类
  */
-public abstract class BaseFragment extends SupportFragment {
+public abstract class BaseFragment<DB extends ViewDataBinding> extends SupportFragment implements BaseView, Consumer<Disposable> {
     protected static final String TAG = BaseFragment.class.getSimpleName();
-    private CompositeDisposable mCompositeDisposable;
+
+    protected Application mApplication;
+    //Disposable容器
+    private CompositeDisposable mCompositeDisposable = new CompositeDisposable();
+    //根部局
     protected View mView;
-    private ViewStub mViewStubContent;
+    //状态页管理
     protected LoadService mBaseLoadService;
+    //默认标题栏
     protected CommonTitleBar mSimpleTitleBar;
-    protected App mApplication;
+    //用于延时显示loading状态
     private Handler mLoadingHandler = new Handler();
-    /**
-     * 是否第一次进入
-     */
+    //公用Handler
+    protected Handler mHandler = new Handler();
+    //记录是否第一次进入
     private boolean isFirst = true;
 
-    protected interface SimpleBarStyle {
-        /**
-         * 返回图标(默认)
-         */
-        int LEFT_BACK = 0;
-        /**
-         * 返回图标+文字
-         */
-        int LEFT_BACK_TEXT = 1;
-        /**
-         * 附加图标
-         */
-        int LEFT_ICON = 2;
-        /**
-         * 标题(默认)
-         */
-        int CENTER_TITLE = 7;
-        /**
-         * 自定义布局
-         */
-        int CENTER_CUSTOME = 8;
-        /**
-         * 文字
-         */
-        int RIGHT_TEXT = 4;
-        /**
-         * 图标(默认)
-         */
-        int RIGHT_ICON = 5;
-        /**
-         * 自定义布局
-         */
-        int RIGHT_CUSTOME = 6;
-    }
+    protected ARouter mRouter =ARouter.getInstance();
+
+    protected DB mBinding;
 
     protected abstract @LayoutRes
     int onBindLayout();
@@ -111,7 +81,7 @@ public abstract class BaseFragment extends SupportFragment {
     protected void initParam() {
     }
 
-    protected abstract void initView(View view);
+    protected abstract void initView();
 
     public void initListener() {
     }
@@ -128,52 +98,45 @@ public abstract class BaseFragment extends SupportFragment {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mApplication = App.getInstance();
-        ARouter.getInstance().inject(this);
+        mRouter.inject(this);
         EventBus.getDefault().register(this);
     }
 
-    /**
-     * RxView添加订阅
-     */
-    protected void addDisposable(Disposable mDisposable) {
-        if (mCompositeDisposable == null) {
-            mCompositeDisposable = new CompositeDisposable();
-        }
-        mCompositeDisposable.add(mDisposable);
-    }
-
-    /**
-     * 取消RxView所有订阅
-     */
-    protected void clearDisposable() {
-        if (mCompositeDisposable != null) {
-            mCompositeDisposable.clear();
-        }
-    }
-    /**
-     * 取消RxView某个订阅
-     */
-    protected void removeDisposable(Disposable disposable) {
-        if (mCompositeDisposable != null) {
-            mCompositeDisposable.remove(disposable);
-        }
+    @Override
+    public void accept(Disposable disposable) throws Exception {
+        mCompositeDisposable.add(disposable);
     }
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         mView = inflater.inflate(R.layout.common_layout_root, container, false);
+        if (enableSwipeBack()) {
+            //避免过度绘制策略
+            mView.setBackgroundColor(Color.WHITE);
+        }
         initCommonView();
         initParam();
         //不采用懒加载
         if (!enableLazy()) {
             loadView();
-            initView(mView);
+            initView();
             initListener();
         }
-        return attachToSwipeBack(mView);
+        //避免不必要的布局层级
+        if (enableSwipeBack())
+            return attachToSwipeBack(mView);
+        return mView;
     }
 
+    /**
+     * 是否可滑动返回,默认true
+     *
+     * @return
+     */
+    protected boolean enableSwipeBack() {
+        return true;
+    }
 
     @Override
     public void onLazyInitView(@Nullable Bundle savedInstanceState) {
@@ -181,7 +144,7 @@ public abstract class BaseFragment extends SupportFragment {
         //采用懒加载
         if (enableLazy()) {
             loadView();
-            initView(mView);
+            initView();
             initListener();
             initData();
         }
@@ -197,75 +160,54 @@ public abstract class BaseFragment extends SupportFragment {
         }
     }
 
-    /**
-     * 填充布局(布局懒加载)
-     */
-    protected void loadView() {
-        mViewStubContent.setLayoutResource(onBindLayout());
-        View contentView = mViewStubContent.inflate();
-        LoadSir.Builder builder = new LoadSir.Builder()
-                .addCallback(getInitCallBack())
-                .addCallback(getEmptyCallback())
-                .addCallback(getErrorCallback())
-                .addCallback(getLoadingCallback())
-                .setDefaultCallback(SuccessCallback.class);
-        if (!CollectionUtils.isEmpty(onBindExtraCallBack())) {
-            for (Callback callback : onBindExtraCallBack()) {
-                builder.addCallback(callback);
-            }
-        }
-        mBaseLoadService = builder.build().register(contentView, (Callback.OnReloadListener) BaseFragment.this::onReload);
-    }
-
-    /**
-     * 提供状态布局
-     *
-     * @return
-     */
-    protected Callback getInitCallBack() {
-        return new BlankCallback();
-    }
-
-    protected Callback getLoadingCallback() {
-        return new LoadingCallback();
-    }
-
-    protected Callback getErrorCallback() {
-        return new ErrorCallback();
-    }
-
-    protected Callback getEmptyCallback() {
-        return new EmptyCallback();
-    }
-
-    /**
-     * 提供额外状态布局
-     *
-     * @return
-     */
-    protected List<Callback> onBindExtraCallBack() {
-        return null;
-    }
 
     /**
      * 初始化基本布局
      */
     private void initCommonView() {
-        mSimpleTitleBar = mView.findViewById(R.id.ctb_simple);
-        mViewStubContent = mView.findViewById(R.id.view_stub_content);
         if (enableSimplebar()) {
-            mSimpleTitleBar.setBackgroundResource(R.drawable.shap_common_simplebar);
-            mSimpleTitleBar.setVisibility(View.VISIBLE);
-            initSimpleBar();
+            ViewStub viewStubBar = mView.findViewById(R.id.vs_bar);
+            viewStubBar.setLayoutResource(R.layout.common_layout_simplebar);
+            mSimpleTitleBar = viewStubBar.inflate().findViewById(R.id.ctb_simple);
+            initSimpleBar(mSimpleTitleBar);
         }
+    }
+
+    /**
+     * 填充布局(布局懒加载)
+     */
+    protected void loadView() {
+        ViewStub mViewStubContent = mView.findViewById(R.id.vs_content);
+        mViewStubContent.setLayoutResource(onBindLayout());
+        View contentView = mViewStubContent.inflate();
+        mBinding = DataBindingUtil.bind(contentView);
+        LoadSir.Builder builder = new LoadSir.Builder()
+                .addCallback(getInitStatus())
+                .addCallback(getEmptyStatus())
+                .addCallback(getErrorStatus())
+                .addCallback(getLoadingStatus())
+                .setDefaultCallback(SuccessCallback.class);
+        if (!CollectionUtils.isEmpty(getExtraStatus())) {
+            for (Callback callback : getExtraStatus()) {
+                builder.addCallback(callback);
+            }
+        }
+        FrameLayout.LayoutParams layoutParams=null;
+        if(enableSimplebar()){
+            layoutParams = new FrameLayout.LayoutParams((FrameLayout.LayoutParams) contentView.getLayoutParams());
+            boolean b = StatusBarUtils.supportTransparentStatusBar();
+            int barHeight=b? BarUtils.getStatusBarHeight() :0;
+            layoutParams.topMargin=getResources().getDimensionPixelOffset(R.dimen.simpleBarHeight)+barHeight;
+        }
+        mBaseLoadService = builder.build().register(contentView,layoutParams, (Callback.OnReloadListener) BaseFragment.this::onReload);
     }
 
     /**
      * 初始化通用标题栏
      */
-    private void initSimpleBar() {
+    protected void initSimpleBar(CommonTitleBar mSimpleTitleBar) {
         // 中间
-        if (onBindBarCenterStyle() == BaseFragment.SimpleBarStyle.CENTER_TITLE) {
+        if (onBindBarCenterStyle() == SimpleBarStyle.CENTER_TITLE) {
             String[] strings = onBindBarTitleText();
             if (strings != null && strings.length > 0) {
                 if (null != strings[0] && strings[0].trim().length() > 0) {
@@ -309,7 +251,7 @@ public abstract class BaseFragment extends SupportFragment {
         }
         //右边
         switch (onBindBarRightStyle()) {
-            case BaseFragment.SimpleBarStyle.RIGHT_TEXT:
+            case RIGHT_TEXT:
                 String[] strings = onBindBarRightText();
                 if (strings == null || strings.length == 0) {
                     break;
@@ -327,7 +269,7 @@ public abstract class BaseFragment extends SupportFragment {
                     tv2.setOnClickListener(this::onRight2Click);
                 }
                 break;
-            case BaseFragment.SimpleBarStyle.RIGHT_ICON:
+            case RIGHT_ICON:
                 Integer[] ints = onBindBarRightIcon();
                 if (ints == null || ints.length == 0) {
                     break;
@@ -345,7 +287,7 @@ public abstract class BaseFragment extends SupportFragment {
                     iv2.setOnClickListener(this::onRight2Click);
                 }
                 break;
-            case BaseFragment.SimpleBarStyle.RIGHT_CUSTOME:
+            case RIGHT_CUSTOME:
                 if (onBindBarRightCustome() != null) {
                     ViewGroup group = mSimpleTitleBar.getRightCustomView().findViewById(R.id.fl_custome);
                     group.setVisibility(View.VISIBLE);
@@ -356,6 +298,7 @@ public abstract class BaseFragment extends SupportFragment {
         }
 
     }
+
 
     /**
      * 是否开启通用标题栏,默认true
@@ -371,8 +314,8 @@ public abstract class BaseFragment extends SupportFragment {
      *
      * @return
      */
-    protected int onBindBarRightStyle() {
-        return BaseActivity.SimpleBarStyle.RIGHT_ICON;
+    protected SimpleBarStyle onBindBarRightStyle() {
+        return SimpleBarStyle.RIGHT_ICON;
     }
 
     /**
@@ -380,8 +323,8 @@ public abstract class BaseFragment extends SupportFragment {
      *
      * @return
      */
-    protected int onBindBarLeftStyle() {
-        return BaseActivity.SimpleBarStyle.LEFT_BACK;
+    protected SimpleBarStyle onBindBarLeftStyle() {
+        return SimpleBarStyle.LEFT_BACK;
     }
 
     /**
@@ -389,8 +332,8 @@ public abstract class BaseFragment extends SupportFragment {
      *
      * @return
      */
-    protected int onBindBarCenterStyle() {
-        return BaseActivity.SimpleBarStyle.CENTER_TITLE;
+    protected SimpleBarStyle onBindBarCenterStyle() {
+        return SimpleBarStyle.CENTER_TITLE;
     }
 
     /**
@@ -442,13 +385,6 @@ public abstract class BaseFragment extends SupportFragment {
     }
 
     /**
-     * 点击标题栏返回按钮事件
-     */
-    protected void onSimpleBackClick() {
-        pop();
-    }
-
-    /**
      * 初始化标题栏右侧自定义布局
      *
      * @return
@@ -464,15 +400,6 @@ public abstract class BaseFragment extends SupportFragment {
      */
     protected View onBindBarCenterCustome() {
         return null;
-    }
-
-    /**
-     * 设置标题栏背景颜色
-     *
-     * @return
-     */
-    protected void setSimpleBarBg(@ColorInt int color) {
-        mSimpleTitleBar.setBackgroundColor(color);
     }
 
     /**
@@ -503,6 +430,22 @@ public abstract class BaseFragment extends SupportFragment {
     }
 
     /**
+     * 点击标题栏返回按钮事件
+     */
+    public void onSimpleBackClick() {
+        pop();
+    }
+
+    /**
+     * 设置标题栏背景颜色
+     *
+     * @return
+     */
+    protected void setSimpleBarBg(@ColorInt int color) {
+        mSimpleTitleBar.setBackgroundColor(color);
+    }
+
+    /**
      * 是否开启懒加载,默认true
      *
      * @return
@@ -519,7 +462,7 @@ public abstract class BaseFragment extends SupportFragment {
     protected void setTitle(String[] strings) {
         if (!enableSimplebar()) {
             throw new IllegalStateException("导航栏中不可用,请设置enableSimplebar为true");
-        } else if (onBindBarCenterStyle() != BaseActivity.SimpleBarStyle.CENTER_TITLE) {
+        } else if (onBindBarCenterStyle() != SimpleBarStyle.CENTER_TITLE) {
             throw new IllegalStateException("导航栏中间布局不为标题类型,请设置onBindBarCenterStyle(SimpleBarStyle.CENTER_TITLE)");
         } else {
             if (strings != null && strings.length > 0) {
@@ -588,7 +531,7 @@ public abstract class BaseFragment extends SupportFragment {
      */
     public void showInitView() {
         clearStatus();
-        mBaseLoadService.showCallback(getInitCallBack().getClass());
+        mBaseLoadService.showCallback(getInitStatus().getClass());
     }
 
 
@@ -597,7 +540,7 @@ public abstract class BaseFragment extends SupportFragment {
      */
     public void showErrorView() {
         clearStatus();
-        mBaseLoadService.showCallback(getErrorCallback().getClass());
+        mBaseLoadService.showCallback(getErrorStatus().getClass());
     }
 
     /**
@@ -605,7 +548,7 @@ public abstract class BaseFragment extends SupportFragment {
      */
     public void showEmptyView() {
         clearStatus();
-        mBaseLoadService.showCallback(getEmptyCallback().getClass());
+        mBaseLoadService.showCallback(getEmptyStatus().getClass());
     }
 
     /**
@@ -619,10 +562,10 @@ public abstract class BaseFragment extends SupportFragment {
             ((BaseFragment) parentFragment).showLoadingView(tip);
         } else {
             clearStatus();
-            mBaseLoadService.setCallBack(getLoadingCallback().getClass(), (context, view1) -> {
+            mBaseLoadService.setCallBack(getLoadingStatus().getClass(), (context, view1) -> {
                 TextView tvTip = view1.findViewById(R.id.tv_tip);
-                if(tvTip==null){
-                    throw new IllegalStateException(getLoadingCallback().getClass()+"必须带有显示提示文本的TextView,且id为R.id.tv_tip");
+                if (tvTip == null) {
+                    throw new IllegalStateException(getLoadingStatus().getClass() + "必须带有显示提示文本的TextView,且id为R.id.tv_tip");
                 }
                 if (tip == null) {
                     tvTip.setVisibility(View.GONE);
@@ -632,7 +575,7 @@ public abstract class BaseFragment extends SupportFragment {
                 }
             });
             //延时300毫秒显示,避免闪屏
-            mLoadingHandler.postDelayed(() -> mBaseLoadService.showCallback(getLoadingCallback().getClass()), 300);
+            mLoadingHandler.postDelayed(() -> mBaseLoadService.showCallback(getLoadingStatus().getClass()), 300);
 
         }
     }
@@ -666,70 +609,15 @@ public abstract class BaseFragment extends SupportFragment {
         isFirst = false;
     }
 
-    /**
-     * findViewById
-     *
-     * @param id
-     * @param <T>
-     * @return
-     */
-    protected <T extends View> T fd(@IdRes int id) {
-        return mView.findViewById(id);
-    }
-
     @Override
     public FragmentAnimator onCreateFragmentAnimator() {
         return new DefaultHorizontalAnimator();
     }
 
-    /**
-     * 页面跳转
-     *
-     * @param path
-     */
-    protected void navigateTo(String path) {
-        Object navigation = ARouter.getInstance().build(path).navigation();
-        if (null != navigation) {
-            EventBus.getDefault().post(new ActivityEvent(EventCode.Main.NAVIGATE,
-                    new NavigateBean(path, (ISupportFragment) navigation)));
-        }
-    }
-
-    protected void navigateTo(String path, int launchMode) {
-        Object navigation = ARouter.getInstance().build(path).navigation();
-        NavigateBean navigateBean = new NavigateBean(path, (ISupportFragment) navigation);
-        navigateBean.launchMode = launchMode;
-        if (null != navigation) {
-            EventBus.getDefault().post(new ActivityEvent(EventCode.Main.NAVIGATE,
-                    new NavigateBean(path, (ISupportFragment) navigation)));
-        }
-    }
-
-    protected void navigateTo(String path, int launchMode, ExtraTransaction extraTransaction) {
-        Object navigation = ARouter.getInstance().build(path).navigation();
-        NavigateBean navigateBean = new NavigateBean(path, (ISupportFragment) navigation);
-        navigateBean.launchMode = launchMode;
-        navigateBean.extraTransaction = extraTransaction;
-        if (null != navigation) {
-            EventBus.getDefault().post(new ActivityEvent(EventCode.Main.NAVIGATE,
-                    new NavigateBean(path, (ISupportFragment) navigation)));
-        }
-    }
-
-    protected void navigateTo(String path, ExtraTransaction extraTransaction) {
-        Object navigation = ARouter.getInstance().build(path).navigation();
-        NavigateBean navigateBean = new NavigateBean(path, (ISupportFragment) navigation);
-        navigateBean.extraTransaction = extraTransaction;
-        if (null != navigation) {
-            EventBus.getDefault().post(new ActivityEvent(EventCode.Main.NAVIGATE,
-                    new NavigateBean(path, (ISupportFragment) navigation)));
-        }
-    }
-
     @Override
     public boolean onBackPressedSupport() {
         //如果正在显示loading,则清除
-        if (mBaseLoadService.getCurrentCallback() == LoadingCallback.class) {
+        if (mBaseLoadService.getCurrentCallback() == LoadingStatus.class) {
             clearStatus();
             return true;
         }
@@ -739,9 +627,46 @@ public abstract class BaseFragment extends SupportFragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        mHandler.removeCallbacksAndMessages(null);
         mLoadingHandler.removeCallbacksAndMessages(null);
         EventBus.getDefault().unregister(this);
-        clearDisposable();
-        AppHelper.refWatcher.watch(this);
+        mCompositeDisposable.clear();
+        ThirdHelper.refWatcher.watch(this);
+    }
+
+
+    protected enum SimpleBarStyle {
+        /**
+         * 返回图标(默认)
+         */
+        LEFT_BACK,
+        /**
+         * 返回图标+文字
+         */
+        LEFT_BACK_TEXT,
+        /**
+         * 附加图标
+         */
+        LEFT_ICON,
+        /**
+         * 标题(默认)
+         */
+        CENTER_TITLE,
+        /**
+         * 自定义布局
+         */
+        CENTER_CUSTOME,
+        /**
+         * 文字
+         */
+        RIGHT_TEXT,
+        /**
+         * 图标(默认)
+         */
+        RIGHT_ICON,
+        /**
+         * 自定义布局
+         */
+        RIGHT_CUSTOME,
     }
 }

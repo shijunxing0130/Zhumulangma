@@ -2,12 +2,10 @@ package com.gykj.zhumulangma.home.fragment;
 
 
 import android.arch.lifecycle.ViewModelProvider;
+import android.databinding.DataBindingUtil;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.TextView;
 
 import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
@@ -15,14 +13,15 @@ import com.blankj.utilcode.util.ResourceUtils;
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.bean.ProvinceBean;
+import com.gykj.zhumulangma.common.databinding.CommonLayoutListBinding;
 import com.gykj.zhumulangma.common.event.KeyCode;
 import com.gykj.zhumulangma.common.mvvm.view.BaseRefreshMvvmFragment;
-import com.gykj.zhumulangma.common.mvvm.view.status.ListCallback;
-import com.gykj.zhumulangma.common.util.RadioUtil;
+import com.gykj.zhumulangma.common.mvvm.view.status.ListSkeleton;
 import com.gykj.zhumulangma.home.R;
 import com.gykj.zhumulangma.home.adapter.RadioAdapter;
+import com.gykj.zhumulangma.home.databinding.HomeLayoutRankBarCenterBinding;
 import com.gykj.zhumulangma.home.dialog.RadioProvincePopup;
 import com.gykj.zhumulangma.home.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.home.mvvm.viewmodel.RadioListViewModel;
@@ -30,7 +29,6 @@ import com.jakewharton.rxbinding3.view.RxView;
 import com.kingja.loadsir.callback.Callback;
 import com.lxj.xpopup.XPopup;
 import com.lxj.xpopup.enums.PopupPosition;
-import com.scwang.smartrefresh.layout.SmartRefreshLayout;
 import com.ximalaya.ting.android.opensdk.model.live.radio.Radio;
 
 import java.util.ArrayList;
@@ -43,8 +41,8 @@ import java.util.concurrent.TimeUnit;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:电台列表
  */
-@Route(path = AppConstants.Router.Home.F_RADIO_LIST)
-public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewModel, Radio> implements
+@Route(path = Constants.Router.Home.F_RADIO_LIST)
+public class RadioListFragment extends BaseRefreshMvvmFragment<CommonLayoutListBinding, RadioListViewModel, Radio> implements
         BaseQuickAdapter.OnItemClickListener, RadioProvincePopup.onSelectedListener, RadioProvincePopup.onPopupDismissingListener {
     //本省台
     public static final int LOCAL_PROVINCE = 999;
@@ -66,11 +64,9 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
     private RadioAdapter mRadioAdapter;
     private int mProvinceCode;
 
-    private SmartRefreshLayout refreshLayout;
-    private View llbarCenter;
-    private View ivCategoryDown;
+    private HomeLayoutRankBarCenterBinding mBarCenterBind;
 
-    private TextView tvTitle;
+
     private List<ProvinceBean> mProvinceBeans;
     private RadioProvincePopup mProvincePopup;
 
@@ -80,32 +76,28 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
 
     @Override
     protected int onBindLayout() {
-        return R.layout.common_layout_refresh_loadmore;
+        return R.layout.common_layout_list;
     }
 
     @Override
-    protected void initView(View view) {
+    protected void initView() {
         String s = ResourceUtils.readAssets2String("province.json");
         mProvinceBeans = new Gson().fromJson(s, new TypeToken<ArrayList<ProvinceBean>>() {
         }.getType());
 
-        RecyclerView recyclerView = fd(R.id.recyclerview);
-        recyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
-        recyclerView.setHasFixedSize(true);
-        ivCategoryDown = llbarCenter.findViewById(R.id.iv_down);
-        tvTitle = llbarCenter.findViewById(R.id.tv_title);
+        mBinding.recyclerview.setLayoutManager(new LinearLayoutManager(mActivity));
+        mBinding.recyclerview.setHasFixedSize(true);
         mRadioAdapter = new RadioAdapter(R.layout.home_item_radio_line);
-        mRadioAdapter.bindToRecyclerView(recyclerView);
+        mRadioAdapter.bindToRecyclerView(mBinding.recyclerview);
         mRadioAdapter.setOnItemClickListener(this);
-        refreshLayout = fd(R.id.refreshLayout);
 
-        tvTitle.setText(mTitle);
+        mBarCenterBind.tvTitle.setText(mTitle);
         if (mType == PROVINCE) {
-            ivCategoryDown.setVisibility(View.VISIBLE);
-            tvTitle.setText(mProvinceBeans.get(0).getProvince_name());
+            mBarCenterBind.ivDown.setVisibility(View.VISIBLE);
+            mBarCenterBind.tvTitle.setText(mProvinceBeans.get(0).getProvince_name());
         }
 
-        mProvincePopup=new RadioProvincePopup(mActivity,this);
+        mProvincePopup = new RadioProvincePopup(mActivity, this);
         mProvincePopup.setDismissingListener(this);
     }
 
@@ -113,15 +105,16 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
     public void initListener() {
         super.initListener();
         if (mType == PROVINCE) {
-            addDisposable(RxView.clicks(llbarCenter)
-                    .throttleFirst(1, TimeUnit.SECONDS).subscribe(unit -> switchProvince()));
+            RxView.clicks(mBarCenterBind.getRoot())
+                    .doOnSubscribe(this)
+                    .throttleFirst(1, TimeUnit.SECONDS).subscribe(unit -> switchProvince());
         }
     }
 
     @NonNull
     @Override
     protected WrapRefresh onBindWrapRefresh() {
-        return new WrapRefresh(refreshLayout, mRadioAdapter);
+        return new WrapRefresh(mBinding.refreshLayout, mRadioAdapter);
     }
 
     @Override
@@ -136,8 +129,7 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
     @Override
     public void onItemClick(BaseQuickAdapter adapter, View view, int position) {
         if (adapter == mRadioAdapter) {
-            RadioUtil.getInstance(mActivity).playLiveRadioForSDK(mRadioAdapter.getItem(position));
-            navigateTo(AppConstants.Router.Home.F_PLAY_RADIIO);
+            mViewModel.playRadio(mRadioAdapter.getItem(position));
         }
     }
 
@@ -153,7 +145,7 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
     }
 
     @Override
-    protected Integer[] onBindBarRightIcon() {
+    public Integer[] onBindBarRightIcon() {
         if (mType == LOCAL_PROVINCE || mType == COUNTRY || mType == PROVINCE || mType == INTERNET || mType == RANK || mType == LOCAL_CITY) {
             return null;
         }
@@ -161,14 +153,14 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
     }
 
     @Override
-    protected View onBindBarCenterCustome() {
-        llbarCenter = LayoutInflater.from(mActivity).inflate(R.layout.home_layout_rank_bar_center, null);
-        return llbarCenter;
+    public View onBindBarCenterCustome() {
+        mBarCenterBind = DataBindingUtil.inflate(getLayoutInflater(), R.layout.home_layout_rank_bar_center, null, false);
+        return mBarCenterBind.getRoot();
     }
 
 
     @Override
-    protected int onBindBarCenterStyle() {
+    public SimpleBarStyle onBindBarCenterStyle() {
         return SimpleBarStyle.CENTER_CUSTOME;
     }
 
@@ -184,20 +176,20 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
 
     private void switchProvince() {
 
-        if(mProvincePopup.isShow()){
+        if (mProvincePopup.isShow()) {
             mProvincePopup.dismiss();
-        }else {
-            ivCategoryDown.animate().rotation(180).setDuration(200);
-            new XPopup.Builder(mActivity).atView(fd(R.id.ctb_simple)).popupPosition(PopupPosition.Bottom).asCustom(mProvincePopup).show();
+        } else {
+            mBarCenterBind.ivDown.animate().rotation(180).setDuration(200);
+            new XPopup.Builder(mActivity).atView(mSimpleTitleBar).popupPosition(PopupPosition.Bottom).asCustom(mProvincePopup).show();
         }
     }
 
 
     @Override
     public void onSelected(int province_code, String province_name) {
-        if (mProvinceCode !=province_code) {
+        if (mProvinceCode != province_code) {
             mProvinceCode = province_code;
-            tvTitle.setText(province_name);
+            mBarCenterBind.tvTitle.setText(province_name);
             mViewModel.setProvinceCode(mProvinceCode);
             mViewModel.init();
         }
@@ -205,11 +197,11 @@ public class RadioListFragment extends BaseRefreshMvvmFragment<RadioListViewMode
 
     @Override
     public void onDismissing() {
-        ivCategoryDown.animate().rotation(0).setDuration(200);
+        mBarCenterBind.ivDown.animate().rotation(0).setDuration(200);
     }
 
-     @Override
-    protected Callback getInitCallBack() {
-        return new ListCallback();
+    @Override
+    public Callback getInitStatus() {
+        return new ListSkeleton();
     }
 }

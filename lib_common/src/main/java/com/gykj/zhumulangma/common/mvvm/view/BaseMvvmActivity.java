@@ -3,6 +3,7 @@ package com.gykj.zhumulangma.common.mvvm.view;
 import android.arch.lifecycle.Observer;
 import android.arch.lifecycle.ViewModelProvider.Factory;
 import android.arch.lifecycle.ViewModelProviders;
+import android.databinding.ViewDataBinding;
 
 import com.gykj.zhumulangma.common.mvvm.viewmodel.BaseViewModel;
 
@@ -12,7 +13,7 @@ import com.gykj.zhumulangma.common.mvvm.viewmodel.BaseViewModel;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:MvvmActivity基类
  */
-public abstract class BaseMvvmActivity<VM extends BaseViewModel> extends BaseActivity {
+public abstract class BaseMvvmActivity<VM extends BaseViewModel> extends BaseActivity{
     protected VM mViewModel;
 
     @Override
@@ -39,7 +40,7 @@ public abstract class BaseMvvmActivity<VM extends BaseViewModel> extends BaseAct
 
     protected void initBaseViewObservable() {
         mViewModel.getShowInitViewEvent().observe(this, (Observer<Void>) show -> showInitView());
-        mViewModel.getShowLoadingViewEvent().observe(this, (Observer<String>) tip -> showLoadingView(tip));
+        mViewModel.getShowLoadingViewEvent().observe(this, (Observer<String>) this::showLoadingView);
         mViewModel.getShowEmptyViewEvent().observe(this, (Observer<Void>) show -> showEmptyView());
         mViewModel.getShowErrorViewEvent().observe(this, (Observer<Void>) show -> showErrorView());
         mViewModel.getFinishSelfEvent().observe(this, (Observer<Void>) v -> pop());

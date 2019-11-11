@@ -2,6 +2,9 @@
 ### 本项目仅提供学习参考,不可作为商用.
 
 ### 更新日志：
+###### 珠穆朗玛FM 1.0 2019-10.31
+* 使用BackgroundLibrary库代替所有shape资源,请无视xml文件中app:bl_xxxx_xxxx="xxxx"错误
+* 引入databinding,减少findViewById使用
 ###### 珠穆朗玛FM 1.0 2019-10.22
 * 用户登陆
 ###### 珠穆朗玛FM 1.0 2019-10.09
@@ -46,6 +49,7 @@
 本项目采用retrofit+rxjava2+rxandroid+arouter+mvvm+fragmentation实现单activity多fragme组件化架构
 
 * app：负责管理各个业务组件，和打包apk，没有具体的业务功能；
+* lib_third：负责第三方库的集成和初始化;
 * lib_common：属于功能组件，支撑业务组件的基础，提供多数业务组件需要的功能;
 * module_main：属于业务组件，指定APP启动页面、主界面；
 * module_home：首页展示,包括热门,分类,精品,主播,电台,展示及播放等；
@@ -107,6 +111,7 @@ sourceSets {
 * lottie动画 https://github.com/airbnb/lottie-android
 * SmartRefreshLayout https://github.com/scwang90/SmartRefreshLayout
 * MagicIndicator https://github.com/hackware1993/MagicIndicator
+* shape神器BackgroundLibrary https://github.com/JavaNoober/BackgroundLibrary
 ### 致谢
 * 感谢所有开源库的大佬
 * mvvm借鉴 https://github.com/geduo83/FlyTour 
@@ -119,6 +124,7 @@ sourceSets {
 ### 开源项目
 * 快速切面编程开源库 https://github.com/TanZhiL/OkAspectj
 * 高仿喜马拉雅听Android客户端 https://github.com/TanZhiL/Zhumulangma
+* 骨架屏弹性块 https://github.com/TanZhiL/SkeletonBlock
 ### License
 ```
 Copyright (C)  tanzhilong Zhumualangma Framework Open Source Project

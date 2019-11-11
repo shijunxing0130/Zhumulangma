@@ -3,28 +3,23 @@ package com.gykj.zhumulangma.home.fragment;
 
 import android.Manifest;
 import android.arch.lifecycle.ViewModelProvider;
-import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
-import android.support.v4.view.ViewPager;
 import android.view.View;
 import android.widget.TextView;
 
 import com.alibaba.android.arouter.facade.Postcard;
 import com.alibaba.android.arouter.facade.annotation.Route;
-import com.alibaba.android.arouter.launcher.ARouter;
 import com.blankj.utilcode.util.BarUtils;
 import com.blankj.utilcode.util.CollectionUtils;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.adapter.TFragmentPagerAdapter;
 import com.gykj.zhumulangma.common.adapter.TabNavigatorAdapter;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
-import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.KeyCode;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.mvvm.view.BaseMvvmFragment;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.gykj.zhumulangma.common.util.ToastUtil;
 import com.gykj.zhumulangma.home.R;
+import com.gykj.zhumulangma.home.databinding.HomeFragmentMainBinding;
 import com.gykj.zhumulangma.home.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.home.mvvm.viewmodel.HomeViewModel;
 import com.jakewharton.rxbinding3.view.RxView;
@@ -33,18 +28,13 @@ import com.tbruyelle.rxpermissions2.RxPermissions;
 import com.wuhenzhizao.titlebar.statusbar.StatusBarUtils;
 import com.ximalaya.ting.android.opensdk.model.word.HotWord;
 
-import net.lucode.hackware.magicindicator.MagicIndicator;
 import net.lucode.hackware.magicindicator.ViewPagerHelper;
 import net.lucode.hackware.magicindicator.buildins.commonnavigator.CommonNavigator;
-
-import org.greenrobot.eventbus.EventBus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import me.yokeyword.fragmentation.ISupportFragment;
 
 /**
  * Author: Thomas.
@@ -52,11 +42,10 @@ import me.yokeyword.fragmentation.ISupportFragment;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:首页
  */
-@Route(path = AppConstants.Router.Home.F_MAIN)
-public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements View.OnClickListener, MarqueeView.OnItemClickListener {
+@Route(path = Constants.Router.Home.F_MAIN)
+public class MainHomeFragment extends BaseMvvmFragment<HomeFragmentMainBinding, HomeViewModel>
+        implements View.OnClickListener, MarqueeView.OnItemClickListener {
 
-
-    private MarqueeView<String> mMarqueeView;
 
     public MainHomeFragment() {
     }
@@ -68,9 +57,8 @@ public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements
     }
 
     @Override
-    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        setSwipeBackEnable(false);
+    protected boolean enableSwipeBack() {
+        return false;
     }
 
     @Override
@@ -80,14 +68,13 @@ public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements
     }
 
     @Override
-    protected void initView(View view) {
+    protected void initView() {
         String[] tabs = {"热门", "分类", "精品", "主播", "广播"};
 
         if (StatusBarUtils.supportTransparentStatusBar()) {
-            fd(R.id.cl_titlebar).setPadding(0, BarUtils.getStatusBarHeight(), 0, 0);
+            mBinding.clTitlebar.setPadding(0, BarUtils.getStatusBarHeight(), 0, 0);
         }
         List<Fragment> fragments = new ArrayList<>();
-        ViewPager viewpager = view.findViewById(R.id.viewpager);
         fragments.add(new HotFragment());
         fragments.add(new CategoryFragment());
         fragments.add(new FineFragment());
@@ -96,38 +83,39 @@ public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements
 
         TFragmentPagerAdapter adapter = new TFragmentPagerAdapter(
                 getChildFragmentManager(), fragments);
-        viewpager.setOffscreenPageLimit(4);
-        viewpager.setAdapter(adapter);
+        mBinding.viewpager.setOffscreenPageLimit(4);
+        mBinding.viewpager.setAdapter(adapter);
 
-        MagicIndicator magicIndicator = view.findViewById(R.id.magic_indicator);
         final CommonNavigator commonNavigator = new CommonNavigator(mActivity);
-        commonNavigator.setAdapter(new TabNavigatorAdapter(Arrays.asList(tabs), viewpager, 50));
+        commonNavigator.setAdapter(new TabNavigatorAdapter(Arrays.asList(tabs), mBinding.viewpager, 50));
         commonNavigator.setAdjustMode(true);
-        magicIndicator.setNavigator(commonNavigator);
-        ViewPagerHelper.bind(magicIndicator, viewpager);
+        mBinding.magicIndicator.setNavigator(commonNavigator);
+        ViewPagerHelper.bind(mBinding.magicIndicator, mBinding.viewpager);
 
-        mMarqueeView = fd(R.id.marqueeView);
     }
 
     @Override
     public void initListener() {
         super.initListener();
-        addDisposable(RxView.clicks(fd(R.id.ll_search)).throttleFirst(1, TimeUnit.SECONDS)
+        RxView.clicks(mBinding.llSearch)
+                .doOnSubscribe(this)
+                .throttleFirst(1, TimeUnit.SECONDS)
                 .subscribe(unit -> {
-                    Postcard build = ARouter.getInstance().build(AppConstants.Router.Home.F_SEARCH);
-                    if (!CollectionUtils.isEmpty(mMarqueeView.getMessages())) {
-                        build.withString(KeyCode.Home.HOTWORD, mMarqueeView.getMessages().get(mMarqueeView.getPosition()));
+                    Postcard postcard = mRouter.build(Constants.Router.Home.F_SEARCH);
+                    if (!CollectionUtils.isEmpty(mBinding.marqueeView.getMessages())) {
+                        postcard.withString(KeyCode.Home.HOTWORD, (String) mBinding.marqueeView.getMessages()
+                                .get(mBinding.marqueeView.getPosition()));
                     }
-                    Object navigation = build.navigation();
-                    EventBus.getDefault().post(new ActivityEvent(
-                            EventCode.Main.NAVIGATE, new NavigateBean(AppConstants.Router.Home.F_SEARCH, (ISupportFragment) navigation)));
-                }));
+                    RouterUtil.navigateTo(postcard);
+                });
 
-        fd(R.id.iv_download).setOnClickListener(this);
-        fd(R.id.iv_history).setOnClickListener(this);
-        addDisposable(RxView.clicks(fd(R.id.iv_message)).throttleFirst(1, TimeUnit.SECONDS)
-                .subscribe(unit -> navigateTo(AppConstants.Router.User.F_MESSAGE)));
-        mMarqueeView.setOnItemClickListener(this);
+        mBinding.ivDownload.setOnClickListener(this);
+        mBinding.ivHistory.setOnClickListener(this);
+        RxView.clicks(mBinding.ivMessage)
+                .doOnSubscribe(this)
+                .throttleFirst(1, TimeUnit.SECONDS)
+                .subscribe(unit -> RouterUtil.navigateTo(Constants.Router.User.F_MESSAGE));
+        mBinding.marqueeView.setOnItemClickListener(this);
     }
 
     @Override
@@ -138,13 +126,13 @@ public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements
     @Override
     protected void onRevisible() {
         super.onRevisible();
-        if (CollectionUtils.isEmpty(mMarqueeView.getMessages())) {
+        if (CollectionUtils.isEmpty(mBinding.marqueeView.getMessages())) {
             mViewModel.getHotWords();
         }
     }
 
     @Override
-    protected boolean enableSimplebar() {
+    public boolean enableSimplebar() {
         return false;
     }
 
@@ -155,14 +143,14 @@ public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements
             new RxPermissions(this).requestEach(new String[]{Manifest.permission.CAMERA})
                     .subscribe(permission -> {
                         if (permission.granted) {
-                            navigateTo(AppConstants.Router.Home.F_SCAN);
+                            RouterUtil.navigateTo(Constants.Router.Home.F_SCAN);
                         } else {
                             ToastUtil.showToast("请允许应用使用相机权限");
                         }
                     });
 
         } else if (id == R.id.iv_history) {
-            navigateTo(AppConstants.Router.Listen.F_HISTORY);
+            RouterUtil.navigateTo(Constants.Router.Listen.F_HISTORY);
         }
 
     }
@@ -184,31 +172,29 @@ public class MainHomeFragment extends BaseMvvmFragment<HomeViewModel> implements
             for (HotWord word : hotWords) {
                 words.add(word.getSearchword());
             }
-            mMarqueeView.startWithList(words);
+            mBinding.marqueeView.startWithList(words);
         });
     }
 
     @Override
     public void onItemClick(int position, TextView textView) {
-        Postcard build = ARouter.getInstance().build(AppConstants.Router.Home.F_SEARCH);
-        Object navigation = build.withString(KeyCode.Home.HOTWORD, mMarqueeView.getMessages().get(position)).navigation();
-        EventBus.getDefault().post(new ActivityEvent(
-                EventCode.Main.NAVIGATE, new NavigateBean(AppConstants.Router.Home.F_SEARCH, (ISupportFragment) navigation)));
+        RouterUtil.navigateTo(mRouter.build(Constants.Router.Home.F_SEARCH)
+                .withString(KeyCode.Home.HOTWORD, (String) mBinding.marqueeView.getMessages().get(position)));
     }
 
     @Override
     public void onSupportVisible() {
         super.onSupportVisible();
-        if (mMarqueeView != null && !CollectionUtils.isEmpty(mMarqueeView.getMessages())) {
-            mMarqueeView.startFlipping();
+        if (mBinding.marqueeView != null && !CollectionUtils.isEmpty(mBinding.marqueeView.getMessages())) {
+            mBinding.marqueeView.startFlipping();
         }
     }
 
     @Override
     public void onSupportInvisible() {
         super.onSupportInvisible();
-        if (mMarqueeView != null) {
-            mMarqueeView.stopFlipping();
+        if (mBinding.marqueeView != null) {
+            mBinding.marqueeView.stopFlipping();
         }
     }
 

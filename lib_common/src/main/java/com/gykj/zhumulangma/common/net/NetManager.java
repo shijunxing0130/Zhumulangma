@@ -4,16 +4,17 @@ import android.support.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.blankj.utilcode.util.SPUtils;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.event.EventCode;
+import com.gykj.zhumulangma.common.Constants;
+import com.gykj.zhumulangma.common.db.DBManager;
 import com.gykj.zhumulangma.common.net.service.CommonService;
 import com.gykj.zhumulangma.common.net.service.UserService;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.Proxy;
 
-import io.reactivex.schedulers.Schedulers;
+import io.rx_cache2.internal.RxCache;
+import io.victoralbertos.jolyglot.GsonSpeaker;
 import okhttp3.HttpUrl;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -28,38 +29,22 @@ import retrofit2.converter.gson.GsonConverterFactory;
  * Author: Thomas.
  * <br/>Date: 2019/9/10 8:23
  * <br/>Email: 1071931588@qq.com
- * <br/>Description:网络请求类
+ * <br/>Description:网络请求管理类
  */
 public class NetManager {
     private static final String TAG = "NetManager";
+    private static File mCacheFile;
     private static volatile NetManager instance;
+    private CacheProvider mCacheProvider;
     private Retrofit mRetrofit;
     private int mNetStatus = Constans.NET_ONLINE;
     private CommonService mCommonService;
     private UserService mUserService;
 
-    private NetManager() {
-
-        OkHttpClient.Builder builder = new OkHttpClient.Builder()
-                //添加头部信息
-                .addInterceptor(chain -> {
-                    Request.Builder requestBuilder = chain.request().newBuilder()
-                            .header(Constans.TOKEN_KEY, SPUtils.getInstance().getString(AppConstants.SP.TOKEN));
-                    return chain.proceed(requestBuilder.build());
-                })
-                //动态改变baseUrl拦截器
-                .addInterceptor(new UrlInterceptor())
-                //日志
-                .addInterceptor(new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
-                //防抓包
-                .proxy(Proxy.NO_PROXY);
-
-        mRetrofit = new Retrofit.Builder()
-                .client(builder.build())
-                .baseUrl(Constans.ONLINE_HOST1)
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+    public static void init(File cacheFile) {
+        if (!cacheFile.exists())
+            cacheFile.mkdirs();
+        mCacheFile = cacheFile;
     }
 
     public static NetManager getInstance() {
@@ -73,26 +58,59 @@ public class NetManager {
         return instance;
     }
 
+    private NetManager() {
+        //先异步获取token
+        DBManager.getInstance()
+                .getSPString(Constants.SP.TOKEN)
+                .compose(RxAdapter.schedulersTransformer())
+                .compose(RxAdapter.exceptionTransformer())
+                .subscribe(token -> {
+                    OkHttpClient.Builder builder = new OkHttpClient.Builder()
+                            //添加头部信息
+                            .addInterceptor(chain -> {
+                                Request.Builder requestBuilder = chain.request().newBuilder()
+                                        .header(Constans.TOKEN_KEY, token);
+                                return chain.proceed(requestBuilder.build());
+                            })
+                            //动态改变baseUrl拦截器
+                            .addInterceptor(new UrlInterceptor())
+                            //日志
+                            .addInterceptor(new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                            //防抓包
+                            .proxy(Proxy.NO_PROXY);
+
+                    mRetrofit = new Retrofit.Builder()
+                            .client(builder.build())
+                            .baseUrl(Constans.ONLINE_HOST1)
+                            .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+                            .addConverterFactory(GsonConverterFactory.create())
+                            .build();
+
+                    mCacheProvider = new RxCache.Builder()
+                            .persistence(mCacheFile, new GsonSpeaker())
+                            .using(CacheProvider.class);
+                });
+    }
+
     /**
-     * 获取一个公共服务
+     * 获取缓存对象
      *
      * @return
      */
+    public CacheProvider getCacheProvider() {
+        return mCacheProvider;
+    }
+
     public CommonService getCommonService() {
-        if(mCommonService==null){
-            mCommonService=mRetrofit.create(CommonService.class);
+        if (mCommonService == null) {
+            mCommonService = mRetrofit.create(CommonService.class);
         }
         return mCommonService;
     }
 
-    /**
-     * 获取一个User服务
-     *
-     * @return
-     */
     public UserService getUserService() {
-        if(mUserService==null){
-            mUserService=mRetrofit.create(UserService.class);
+        if (mUserService == null) {
+            mUserService = mRetrofit.create(UserService.class);
         }
         return mUserService;
     }
@@ -108,27 +126,9 @@ public class NetManager {
     }
 
     /**
-     * 根据header和netStatus组合baseUrl
-     * @param hostValue
-     * @return
-     */
-    private HttpUrl getBaseUrl(String hostValue) {
-        if (Constans.HOST1_VALUE.equals(hostValue) && mNetStatus == Constans.NET_OFFLINE) {
-            return HttpUrl.parse(Constans.OFFLINE_HOST1);
-        } else if (Constans.HOST1_VALUE.equals(hostValue) && mNetStatus == Constans.NET_ONLINE) {
-            return HttpUrl.parse(Constans.ONLINE_HOST1);
-        } else if (Constans.HOST2_VALUE.equals(hostValue) && mNetStatus == Constans.NET_OFFLINE) {
-            return HttpUrl.parse(Constans.OFFLINE_HOST2);
-        } else if (Constans.HOST2_VALUE.equals(hostValue) && mNetStatus == Constans.NET_ONLINE) {
-            return HttpUrl.parse(Constans.ONLINE_HOST2);
-        }
-        return null;
-    }
-
-    /**
      * 动态更换主机
      */
-    public class UrlInterceptor implements Interceptor {
+    class UrlInterceptor implements Interceptor {
         @Override
         public Response intercept(@NonNull Chain chain) throws IOException {
             //获取request
@@ -157,5 +157,24 @@ public class NetManager {
             Log.d(TAG, "Url重定向:" + newUrl.toString());
             return chain.proceed(builder.url(newUrl).build());
         }
+    }
+
+    /**
+     * 根据header和netStatus组合baseUrl
+     *
+     * @param hostValue
+     * @return
+     */
+    private HttpUrl getBaseUrl(String hostValue) {
+        if (Constans.HOST1_VALUE.equals(hostValue) && mNetStatus == Constans.NET_OFFLINE) {
+            return HttpUrl.parse(Constans.OFFLINE_HOST1);
+        } else if (Constans.HOST1_VALUE.equals(hostValue) && mNetStatus == Constans.NET_ONLINE) {
+            return HttpUrl.parse(Constans.ONLINE_HOST1);
+        } else if (Constans.HOST2_VALUE.equals(hostValue) && mNetStatus == Constans.NET_OFFLINE) {
+            return HttpUrl.parse(Constans.OFFLINE_HOST2);
+        } else if (Constans.HOST2_VALUE.equals(hostValue) && mNetStatus == Constans.NET_ONLINE) {
+            return HttpUrl.parse(Constans.ONLINE_HOST2);
+        }
+        return null;
     }
 }

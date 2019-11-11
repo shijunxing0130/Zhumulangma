@@ -1,39 +1,31 @@
 package com.gykj.zhumulangma.listen.fragment;
 
 import android.arch.lifecycle.ViewModelProvider;
-import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.view.View;
 
 import com.alibaba.android.arouter.launcher.ARouter;
 import com.blankj.utilcode.util.CollectionUtils;
 import com.chad.library.adapter.base.BaseQuickAdapter;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
+import com.gykj.zhumulangma.common.Constants;
+import com.gykj.zhumulangma.common.databinding.CommonLayoutListBinding;
 import com.gykj.zhumulangma.common.event.EventCode;
-import com.gykj.zhumulangma.common.event.KeyCode;
-import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.event.FragmentEvent;
+import com.gykj.zhumulangma.common.event.KeyCode;
 import com.gykj.zhumulangma.common.mvvm.view.BaseMvvmFragment;
-import com.gykj.zhumulangma.common.mvvm.view.status.ListCallback;
+import com.gykj.zhumulangma.common.mvvm.view.status.ListSkeleton;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.gykj.zhumulangma.listen.R;
 import com.gykj.zhumulangma.listen.adapter.RecommendAdapter;
 import com.gykj.zhumulangma.listen.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.listen.mvvm.viewmodel.SubscribeViewModel;
 import com.kingja.loadsir.callback.Callback;
-import com.scwang.smartrefresh.layout.SmartRefreshLayout;
 import com.scwang.smartrefresh.layout.api.RefreshLayout;
 import com.scwang.smartrefresh.layout.listener.OnRefreshLoadMoreListener;
 import com.ximalaya.ting.android.opensdk.model.album.Album;
 
-import org.greenrobot.eventbus.EventBus;
-
 import java.util.List;
-
-import me.yokeyword.fragmentation.ISupportFragment;
 
 /**
  * Author: Thomas.
@@ -41,41 +33,37 @@ import me.yokeyword.fragmentation.ISupportFragment;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:推荐订阅
  */
-public class RecommendFragment extends BaseMvvmFragment<SubscribeViewModel> implements
-        BaseQuickAdapter.OnItemChildClickListener, BaseQuickAdapter.OnItemClickListener, OnRefreshLoadMoreListener {
+public class RecommendFragment extends BaseMvvmFragment<CommonLayoutListBinding, SubscribeViewModel> implements
+        BaseQuickAdapter.OnItemChildClickListener, OnRefreshLoadMoreListener {
 
     private RecommendAdapter mRecommendAdapter;
 
     @Override
     protected int onBindLayout() {
-        return R.layout.common_layout_refresh_loadmore;
+        return R.layout.common_layout_list;
     }
 
     @Override
-    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        setSwipeBackEnable(false);
+    protected boolean enableSwipeBack() {
+        return false;
     }
+
     @Override
-    protected void loadView() {
-        super.loadView();
-        clearStatus();
-    }
-    @Override
-    protected void initView(View view) {
-        RecyclerView recyclerView = fd(R.id.recyclerview);
-        recyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
-        recyclerView.setHasFixedSize(true);
+    protected void initView() {
+        mBinding.recyclerview.setLayoutManager(new LinearLayoutManager(mActivity));
+        mBinding.recyclerview.setHasFixedSize(true);
         mRecommendAdapter = new RecommendAdapter(R.layout.listen_item_recommend);
-        mRecommendAdapter.bindToRecyclerView(recyclerView);
+        mRecommendAdapter.bindToRecyclerView(mBinding.recyclerview);
     }
 
     @Override
     public void initListener() {
         super.initListener();
         mRecommendAdapter.setOnItemChildClickListener(this);
-        mRecommendAdapter.setOnItemClickListener(this);
-        ((SmartRefreshLayout) fd(R.id.refreshLayout)).setOnRefreshLoadMoreListener(this);
+        mRecommendAdapter.setOnItemClickListener((adapter, view, position) ->
+                RouterUtil.navigateTo(mRouter.build(Constants.Router.Home.F_ALBUM_DETAIL)
+                        .withLong(KeyCode.Home.ALBUMID, mRecommendAdapter.getItem(position).getId())));
+        mBinding.refreshLayout.setOnRefreshLoadMoreListener(this);
     }
 
     @Override
@@ -131,7 +119,7 @@ public class RecommendFragment extends BaseMvvmFragment<SubscribeViewModel> impl
 
 
     @Override
-    protected boolean enableSimplebar() {
+    public boolean enableSimplebar() {
         return false;
     }
 
@@ -146,14 +134,6 @@ public class RecommendFragment extends BaseMvvmFragment<SubscribeViewModel> impl
         }
     }
 
-    @Override
-    public void onItemClick(BaseQuickAdapter adapter, View view, int position) {
-        Object navigation = ARouter.getInstance().build(AppConstants.Router.Home.F_ALBUM_DETAIL)
-                .withLong(KeyCode.Home.ALBUMID, mRecommendAdapter.getItem(position).getId())
-                .navigation();
-        EventBus.getDefault().post(new ActivityEvent(
-                EventCode.Main.NAVIGATE, new NavigateBean(AppConstants.Router.Home.F_ALBUM_DETAIL, (ISupportFragment) navigation)));
-    }
 
     @Override
     public void onLoadMore(@NonNull RefreshLayout refreshLayout) {
@@ -166,18 +146,18 @@ public class RecommendFragment extends BaseMvvmFragment<SubscribeViewModel> impl
     }
 
     @Override
-    protected Callback getInitCallBack() {
-        return new ListCallback();
+    public Callback getInitStatus() {
+        return new ListSkeleton();
     }
 
     @Override
-    public  void onEvent(FragmentEvent event) {
+    public void onEvent(FragmentEvent event) {
         super.onEvent(event);
-        switch (event.getCode()){
+        switch (event.getCode()) {
             case EventCode.Listen.TAB_REFRESH:
-                if(isSupportVisible()&&mBaseLoadService.getCurrentCallback()!=getInitCallBack().getClass()){
-                    ((RecyclerView)fd(R.id.recyclerview)).scrollToPosition(0);
-                    ((SmartRefreshLayout)fd(R.id.refreshLayout)).autoRefresh();
+                if (isSupportVisible() && mBaseLoadService.getCurrentCallback() != getInitStatus().getClass()) {
+                    mBinding.recyclerview.scrollToPosition(0);
+                    mBinding.refreshLayout.autoRefresh();
                 }
                 break;
         }

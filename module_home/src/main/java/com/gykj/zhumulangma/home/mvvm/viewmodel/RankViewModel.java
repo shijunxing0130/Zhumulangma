@@ -41,7 +41,6 @@ public class RankViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album>
         map.put(DTransferConstants.PAGE, String.valueOf(curFreePage));
         map.put(DTransferConstants.CALC_DIMENSION, "3");
         mModel.getAlbumList(map)
-                .doOnSubscribe(d->getShowInitViewEvent().call())
                 .subscribe(albumList -> {
                     if (CollectionUtils.isEmpty(albumList.getAlbums())) {
                         getShowEmptyViewEvent().call();
@@ -87,7 +86,7 @@ public class RankViewModel extends BaseRefreshViewModel<ZhumulangmaModel, Album>
                             paidPage++;
                             getPaidSingleLiveEvent().setValue(albumList.getAlbums());
                         },
-                        e -> e.printStackTrace());
+                        Throwable::printStackTrace);
     }
 
 

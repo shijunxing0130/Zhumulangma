@@ -1,6 +1,7 @@
 package com.gykj.zhumulangma.discover.fragment;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AlertDialog;
@@ -10,12 +11,13 @@ import android.widget.ImageView;
 
 import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.KeyCode;
 import com.gykj.zhumulangma.common.mvvm.view.BaseFragment;
 import com.gykj.zhumulangma.discover.R;
+import com.gykj.zhumulangma.discover.databinding.DiscoverFragmentWebBinding;
 import com.just.agentwebX5.AgentWebX5;
 import com.just.agentwebX5.ChromeClientCallbackManager;
 import com.just.agentwebX5.DefaultWebClient;
@@ -42,8 +44,8 @@ import java.util.HashMap;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:
  */
-@Route(path = AppConstants.Router.Discover.F_WEB)
-public class WebFragment extends BaseFragment {
+@Route(path = Constants.Router.Discover.F_WEB)
+public class WebFragment extends BaseFragment<DiscoverFragmentWebBinding> {
     private AgentWebX5 mAgentWeb;
     @Autowired(name = KeyCode.Discover.PATH)
     public String mPath;
@@ -54,17 +56,20 @@ public class WebFragment extends BaseFragment {
     protected int onBindLayout() {
         return R.layout.discover_fragment_web;
     }
-
     @Override
-    protected void initView(View view) {
+    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        mView.setBackgroundColor(Color.WHITE);
+    }
+    @Override
+    protected void initView() {
         ivClose = mSimpleTitleBar.getLeftCustomView().findViewById(R.id.iv_left);
         ivClose.setImageResource(R.drawable.ic_common_web_close);
     }
 
     @Override
-    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        setSwipeBackEnable(false);
+    protected boolean enableSwipeBack() {
+        return false;
     }
 
     @Override
@@ -77,7 +82,7 @@ public class WebFragment extends BaseFragment {
     public void initData() {
 
         mAgentWeb = AgentWebX5.with(this)
-                .setAgentWebParent(fd(R.id.fl_container), new FrameLayout.LayoutParams(-1, -1))
+                .setAgentWebParent(mBinding.flContainer, new FrameLayout.LayoutParams(-1, -1))
                 .setIndicatorColorWithHeight(getResources().getColor(R.color.colorPrimary), 1)
                 .setWebSettings(getSettings())
                 .setWebViewClient(mWebViewClient)
@@ -237,7 +242,7 @@ public class WebFragment extends BaseFragment {
     }
 
     @Override
-    protected void onSimpleBackClick() {
+    public void onSimpleBackClick() {
         if (!mAgentWeb.getWebCreator().get().canGoBack()) {
             pop();
         } else {
@@ -257,12 +262,12 @@ public class WebFragment extends BaseFragment {
     }
 
     @Override
-    protected Integer[] onBindBarRightIcon() {
+    public Integer[] onBindBarRightIcon() {
         return new Integer[]{R.drawable.ic_common_share};
     }
 
     @Override
-    protected void onRight1Click(View v) {
+    public void onRight1Click(View v) {
         super.onRight1Click(v);
         Bitmap favicon = mAgentWeb.getWebCreator().get().getFavicon();
         String title = mAgentWeb.getWebCreator().get().getTitle();

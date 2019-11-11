@@ -1,7 +1,6 @@
 package com.gykj.zhumulangma.listen.fragment;
 
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -9,15 +8,16 @@ import android.widget.CompoundButton;
 import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.chad.library.adapter.base.BaseQuickAdapter;
-import com.gykj.zhumulangma.common.AppConstants;
-import com.gykj.zhumulangma.common.event.EventCode;
-import com.gykj.zhumulangma.common.event.KeyCode;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.event.ActivityEvent;
+import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.FragmentEvent;
+import com.gykj.zhumulangma.common.event.KeyCode;
 import com.gykj.zhumulangma.common.mvvm.view.BaseFragment;
 import com.gykj.zhumulangma.common.util.ToastUtil;
 import com.gykj.zhumulangma.listen.R;
 import com.gykj.zhumulangma.listen.adapter.DownloadDeleteAdapter;
+import com.gykj.zhumulangma.listen.databinding.ListenFragmentDownloadDeleteBinding;
 import com.ximalaya.ting.android.opensdk.model.track.Track;
 import com.ximalaya.ting.android.sdkdownloader.XmDownloadManager;
 import com.ximalaya.ting.android.sdkdownloader.downloadutil.IDoSomethingProgress;
@@ -34,8 +34,8 @@ import java.util.List;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:下载批量删除
  */
-@Route(path = AppConstants.Router.Listen.F_DOWNLOAD_DELETE)
-public class DownloadDeleteFragment extends BaseFragment implements BaseQuickAdapter.OnItemClickListener,
+@Route(path = Constants.Router.Listen.F_DOWNLOAD_DELETE)
+public class DownloadDeleteFragment extends BaseFragment<ListenFragmentDownloadDeleteBinding> implements BaseQuickAdapter.OnItemClickListener,
         View.OnClickListener, CompoundButton.OnCheckedChangeListener {
 
     @Autowired(name = KeyCode.Listen.ALBUMID)
@@ -51,12 +51,11 @@ public class DownloadDeleteFragment extends BaseFragment implements BaseQuickAda
     }
 
     @Override
-    protected void initView(View view) {
-        RecyclerView recyclerView = fd(R.id.recyclerview);
-        recyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
-        recyclerView.setHasFixedSize(true);
+    protected void initView() {
+        mBinding.recyclerview.setLayoutManager(new LinearLayoutManager(mActivity));
+        mBinding.recyclerview.setHasFixedSize(true);
         mDeleteAdapter = new DownloadDeleteAdapter(R.layout.listen_item_download_delete);
-        mDeleteAdapter.bindToRecyclerView(recyclerView);
+        mDeleteAdapter.bindToRecyclerView(mBinding.recyclerview);
 
     }
 
@@ -64,8 +63,8 @@ public class DownloadDeleteFragment extends BaseFragment implements BaseQuickAda
     public void initListener() {
         super.initListener();
         mDeleteAdapter.setOnItemClickListener(this);
-        fd(R.id.ll_delete).setOnClickListener(this);
-        ((CheckBox) fd(R.id.cb_all)).setOnCheckedChangeListener(this);
+        mBinding.llDelete.setOnClickListener(this);
+        mBinding.cbAll.setOnCheckedChangeListener(this);
     }
 
     @Override
@@ -83,7 +82,7 @@ public class DownloadDeleteFragment extends BaseFragment implements BaseQuickAda
     }
 
     @Override
-    protected String[] onBindBarTitleText() {
+    public String[] onBindBarTitleText() {
         return new String[]{"批量删除"};
     }
 
@@ -154,9 +153,9 @@ public class DownloadDeleteFragment extends BaseFragment implements BaseQuickAda
     }
 
     private void updateButton() {
-        fd(R.id.ll_delete).setBackgroundColor(mSelectedIds.size() > 0 ? mActivity.getResources().getColor(R.color.colorPrimary) :
+        mBinding.llDelete.setBackgroundColor(mSelectedIds.size() > 0 ? mActivity.getResources().getColor(R.color.colorPrimary) :
                 mActivity.getResources().getColor(R.color.colorHint));
-        ((CheckBox) fd(R.id.cb_all)).setChecked(mDeleteAdapter.getItemCount() != 0 && mSelectedIds.size() == mDeleteAdapter.getItemCount());
+        mBinding.cbAll.setChecked(mDeleteAdapter.getItemCount() != 0 && mSelectedIds.size() == mDeleteAdapter.getItemCount());
     }
 
     @Override

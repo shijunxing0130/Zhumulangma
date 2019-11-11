@@ -1,6 +1,7 @@
 package com.gykj.zhumulangma.main.fragment;
 
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.Nullable;
@@ -9,11 +10,12 @@ import android.view.View;
 
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.alibaba.android.arouter.launcher.ARouter;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.FragmentEvent;
 import com.gykj.zhumulangma.common.mvvm.view.BaseFragment;
 import com.gykj.zhumulangma.main.R;
+import com.gykj.zhumulangma.main.databinding.MainFragmentMainBinding;
 import com.next.easynavigation.view.EasyNavigationBar;
 
 import org.greenrobot.eventbus.EventBus;
@@ -21,8 +23,8 @@ import org.greenrobot.eventbus.EventBus;
 import java.util.ArrayList;
 import java.util.List;
 
-@Route(path = AppConstants.Router.Main.F_MAIN)
-public class MainFragment extends BaseFragment implements EasyNavigationBar.OnTabClickListener {
+@Route(path = Constants.Router.Main.F_MAIN)
+public class MainFragment extends BaseFragment<MainFragmentMainBinding> implements EasyNavigationBar.OnTabClickListener {
 
     private String[] tabText = {"首页", "我听", "", "发现", "我的"};
 
@@ -43,35 +45,37 @@ public class MainFragment extends BaseFragment implements EasyNavigationBar.OnTa
     protected int onBindLayout() {
         return R.layout.main_fragment_main;
     }
-
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        setSwipeBackEnable(false);
+        //避免过度绘制
+        mView.setBackgroundColor(Color.WHITE);
+    }
+    @Override
+    protected boolean enableSwipeBack() {
+        return false;
     }
 
     @Override
-    public void initView(View view) {
-        EasyNavigationBar enb = view.findViewById(R.id.enb);
+    public void initView() {
         List<Fragment> fragments = new ArrayList<>();
-
-        Object home = ARouter.getInstance().build(AppConstants.Router.Home.F_MAIN).navigation();
+        Object home = mRouter.build(Constants.Router.Home.F_MAIN).navigation();
         if (null != home) {
             fragments.add((Fragment) home);
         }
-        Object listen = ARouter.getInstance().build(AppConstants.Router.Listen.F_MAIN).navigation();
+        Object listen = mRouter.build(Constants.Router.Listen.F_MAIN).navigation();
         if (null != listen) {
             fragments.add((Fragment) listen);
         }
-        Object discover = ARouter.getInstance().build(AppConstants.Router.Discover.F_MAIN).navigation();
+        Object discover = mRouter.build(Constants.Router.Discover.F_MAIN).navigation();
         if (null != listen) {
             fragments.add((Fragment) discover);
         }
-        Object user = ARouter.getInstance().build(AppConstants.Router.User.F_MAIN).navigation();
+        Object user = mRouter.build(Constants.Router.User.F_MAIN).navigation();
         if (null != listen) {
             fragments.add((Fragment) user);
         }
-        enb.titleItems(tabText)
+        mBinding.enb.titleItems(tabText)
                 .normalIconItems(normalIcon)
                 .selectIconItems(selectIcon)
                 .fragmentList(fragments)
@@ -105,10 +109,11 @@ public class MainFragment extends BaseFragment implements EasyNavigationBar.OnTa
         super.onSupportInvisible();
         if (mShowListener != null)
             mShowListener.onRootShow(false);
+
     }
 
     @Override
-    protected boolean enableSimplebar() {
+    public boolean enableSimplebar() {
         return false;
     }
 

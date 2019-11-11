@@ -4,20 +4,21 @@ import android.app.AlertDialog;
 import android.arch.lifecycle.ViewModelProvider;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.view.View;
 
 import com.alibaba.android.arouter.facade.annotation.Route;
 import com.blankj.utilcode.util.CollectionUtils;
 import com.chad.library.adapter.base.BaseQuickAdapter;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
+import com.gykj.zhumulangma.common.databinding.CommonLayoutListBinding;
 import com.gykj.zhumulangma.common.mvvm.view.BaseRefreshMvvmFragment;
+import com.gykj.zhumulangma.common.mvvm.view.status.ListSkeleton;
 import com.gykj.zhumulangma.listen.R;
 import com.gykj.zhumulangma.listen.adapter.HistoryAdapter;
 import com.gykj.zhumulangma.listen.bean.PlayHistoryItem;
 import com.gykj.zhumulangma.listen.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.listen.mvvm.viewmodel.HistoryViewModel;
-import com.scwang.smartrefresh.layout.SmartRefreshLayout;
+import com.kingja.loadsir.callback.Callback;
 
 import java.util.List;
 
@@ -27,26 +28,23 @@ import java.util.List;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:
  */
-@Route(path = AppConstants.Router.Listen.F_HISTORY)
-public class HistoryFragment extends BaseRefreshMvvmFragment<HistoryViewModel,PlayHistoryItem> implements
-        BaseQuickAdapter.OnItemClickListener{
+@Route(path = Constants.Router.Listen.F_HISTORY)
+public class HistoryFragment extends BaseRefreshMvvmFragment<CommonLayoutListBinding,HistoryViewModel, PlayHistoryItem> implements
+        BaseQuickAdapter.OnItemClickListener {
 
-    private SmartRefreshLayout refreshLayout;
     private HistoryAdapter mHistoryAdapter;
 
     @Override
     protected int onBindLayout() {
-        return R.layout.common_layout_refresh_loadmore;
+        return R.layout.common_layout_list;
     }
 
     @Override
-    protected void initView(View view) {
-        refreshLayout = fd(R.id.refreshLayout);
-        RecyclerView recyclerView = fd(R.id.recyclerview);
-        recyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
-        recyclerView.setHasFixedSize(true);
+    protected void initView() {
+        mBinding.recyclerview.setLayoutManager(new LinearLayoutManager(mActivity));
+        mBinding.recyclerview.setHasFixedSize(true);
         mHistoryAdapter = new HistoryAdapter(null);
-        mHistoryAdapter.bindToRecyclerView(recyclerView);
+        mHistoryAdapter.bindToRecyclerView(mBinding.recyclerview);
     }
 
     @Override
@@ -58,7 +56,7 @@ public class HistoryFragment extends BaseRefreshMvvmFragment<HistoryViewModel,Pl
     @NonNull
     @Override
     protected WrapRefresh onBindWrapRefresh() {
-        return new WrapRefresh(refreshLayout,mHistoryAdapter);
+        return new WrapRefresh(mBinding.refreshLayout, mHistoryAdapter);
     }
 
     @Override
@@ -67,13 +65,13 @@ public class HistoryFragment extends BaseRefreshMvvmFragment<HistoryViewModel,Pl
     }
 
     @Override
-    protected String[] onBindBarTitleText() {
+    public String[] onBindBarTitleText() {
         return new String[]{"播放历史"};
     }
 
 
     @Override
-    protected Integer[] onBindBarRightIcon() {
+    public Integer[] onBindBarRightIcon() {
         return new Integer[]{R.drawable.ic_listen_history_delete};
     }
 
@@ -95,9 +93,9 @@ public class HistoryFragment extends BaseRefreshMvvmFragment<HistoryViewModel,Pl
     @Override
     protected void onLoadMoreSucc(List<PlayHistoryItem> list) {
         //两页衔接处处理
-        if(!CollectionUtils.isEmpty(mHistoryAdapter.getData())&&mViewModel.dateCovert(
-                mHistoryAdapter.getItem(mHistoryAdapter.getData().size()-1).data.getDatatime())
-                .equals(list.get(0).header)){
+        if (!CollectionUtils.isEmpty(mHistoryAdapter.getData()) && mViewModel.dateCovert(
+                mHistoryAdapter.getItem(mHistoryAdapter.getData().size() - 1).data.getDatatime())
+                .equals(list.get(0).header)) {
             list.remove(0);
         }
         mHistoryAdapter.addData(list);
@@ -106,18 +104,18 @@ public class HistoryFragment extends BaseRefreshMvvmFragment<HistoryViewModel,Pl
     @Override
     public void onItemClick(BaseQuickAdapter adapter, View view, int position) {
         PlayHistoryItem playHistoryItem = mHistoryAdapter.getItem(position);
-        if(playHistoryItem.itemType!= PlayHistoryItem.HEADER){
-            if(playHistoryItem.itemType== PlayHistoryItem.TRACK){
-                mViewModel.play(playHistoryItem.data.getGroupId(),
+        if (playHistoryItem.itemType != PlayHistoryItem.HEADER) {
+            if (playHistoryItem.itemType == PlayHistoryItem.TRACK) {
+                mViewModel.playRadio(playHistoryItem.data.getGroupId(),
                         playHistoryItem.data.getTrack().getDataId());
-            }else {
-                mViewModel.play(String.valueOf(playHistoryItem.data.getGroupId()));
+            } else {
+                mViewModel.playRadio(String.valueOf(playHistoryItem.data.getGroupId()));
             }
         }
     }
 
     @Override
-    protected void onRight1Click(View v) {
+    public void onRight1Click(View v) {
         super.onRight1Click(v);
         new AlertDialog.Builder(mActivity)
                 .setMessage("确定要清空播放历史吗?")
@@ -132,5 +130,10 @@ public class HistoryFragment extends BaseRefreshMvvmFragment<HistoryViewModel,Pl
     @Override
     protected boolean enableLazy() {
         return false;
+    }
+
+    @Override
+    public Callback getInitStatus() {
+        return new ListSkeleton();
     }
 }

@@ -2,39 +2,39 @@ package com.gykj.zhumulangma.home.fragment;
 
 
 import android.arch.lifecycle.ViewModelProvider;
+import android.databinding.DataBindingUtil;
 import android.graphics.Color;
 import android.support.annotation.NonNull;
 import android.support.v4.view.PagerAdapter;
-import android.support.v4.view.ViewPager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.alibaba.android.arouter.facade.annotation.Autowired;
 import com.alibaba.android.arouter.facade.annotation.Route;
-import com.alibaba.android.arouter.launcher.ARouter;
 import com.blankj.utilcode.util.CollectionUtils;
 import com.bumptech.glide.Glide;
 import com.chad.library.adapter.base.BaseQuickAdapter;
-import com.gykj.zhumulangma.common.AppConstants;
+import com.gykj.zhumulangma.common.Constants;
 import com.gykj.zhumulangma.common.adapter.TabNavigatorAdapter;
-import com.gykj.zhumulangma.common.bean.NavigateBean;
 import com.gykj.zhumulangma.common.event.ActivityEvent;
 import com.gykj.zhumulangma.common.event.EventCode;
 import com.gykj.zhumulangma.common.event.KeyCode;
 import com.gykj.zhumulangma.common.mvvm.view.BaseRefreshMvvmFragment;
-import com.gykj.zhumulangma.common.mvvm.view.status.DetailCallback;
+import com.gykj.zhumulangma.common.mvvm.view.status.DetailSkeleton;
+import com.gykj.zhumulangma.common.util.RouterUtil;
 import com.gykj.zhumulangma.common.util.ToastUtil;
 import com.gykj.zhumulangma.common.util.ZhumulangmaUtil;
 import com.gykj.zhumulangma.home.R;
 import com.gykj.zhumulangma.home.adapter.AlbumTagAdapter;
 import com.gykj.zhumulangma.home.adapter.AlbumTrackAdapter;
+import com.gykj.zhumulangma.home.databinding.HomeFragmentAlbumDetailBinding;
+import com.gykj.zhumulangma.home.databinding.HomeLayoutAlbumDetailBinding;
+import com.gykj.zhumulangma.home.databinding.HomeLayoutAlbumTrackBinding;
 import com.gykj.zhumulangma.home.dialog.TrackPagerPopup;
 import com.gykj.zhumulangma.home.mvvm.ViewModelFactory;
 import com.gykj.zhumulangma.home.mvvm.viewmodel.AlbumDetailViewModel;
@@ -43,7 +43,6 @@ import com.library.flowlayout.FlowLayoutManager;
 import com.lxj.xpopup.XPopup;
 import com.lxj.xpopup.enums.PopupPosition;
 import com.lxj.xpopup.interfaces.SimpleCallback;
-import com.scwang.smartrefresh.layout.SmartRefreshLayout;
 import com.ximalaya.ting.android.opensdk.model.PlayableModel;
 import com.ximalaya.ting.android.opensdk.model.album.Album;
 import com.ximalaya.ting.android.opensdk.model.track.Track;
@@ -57,7 +56,6 @@ import com.ximalaya.ting.android.sdkdownloader.downloadutil.IXmDownloadTrackCall
 import com.ximalaya.ting.android.sdkdownloader.exception.AddDownloadException;
 import com.ximalaya.ting.android.sdkdownloader.task.Callback;
 
-import net.lucode.hackware.magicindicator.MagicIndicator;
 import net.lucode.hackware.magicindicator.ViewPagerHelper;
 import net.lucode.hackware.magicindicator.buildins.commonnavigator.CommonNavigator;
 
@@ -68,16 +66,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import me.yokeyword.fragmentation.ISupportFragment;
-
 /**
  * Author: Thomas.
  * <br/>Date: 2019/8/14 13:41
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:专辑详情页
  */
-@Route(path = AppConstants.Router.Home.F_ALBUM_DETAIL)
-public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailViewModel, Track> implements
+@Route(path = Constants.Router.Home.F_ALBUM_DETAIL)
+public class AlbumDetailFragment extends BaseRefreshMvvmFragment<HomeFragmentAlbumDetailBinding, AlbumDetailViewModel, Track> implements
         BaseQuickAdapter.OnItemClickListener, BaseQuickAdapter.OnItemChildClickListener, View.OnClickListener, TrackPagerPopup.onPopupDismissingListener {
 
     @Autowired(name = KeyCode.Home.ALBUMID)
@@ -90,60 +86,38 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     private TrackPagerPopup mPagerPopup;
     private XmPlayerManager mPlayerManager = XmPlayerManager.getInstance(mActivity);
 
-    private SmartRefreshLayout refreshLayout;
-    private ViewGroup layoutDetail;
-    private ViewGroup layoutTracks;
-    private ImageView ivCover;
-    private TextView tvAlbum;
-    private TextView tvAuthor;
-    private TextView tvPlaycount;
-    private TextView tvTrackcount;
-    private TextView tvSbcount;
-    private TextView tvPlay;
-    private TextView tvLastplay;
-
+    private HomeLayoutAlbumDetailBinding mDetailBind;
+    private HomeLayoutAlbumTrackBinding mTrackBind;
 
     public AlbumDetailFragment() {
     }
 
     @Override
-    public void initView(View view) {
+    public void initView() {
         String[] tabs = {"简介", "节目"};
-        MagicIndicator magicIndicator = fd(R.id.magic_indicator);
-        ViewPager viewpager = fd(R.id.viewpager);
-        tvPlay = fd(R.id.tv_play);
-        ivCover = fd(R.id.iv_cover);
-        tvAlbum = fd(R.id.tv_album);
-        tvAuthor = fd(R.id.tv_author);
-        tvPlaycount = fd(R.id.tv_playcount);
-        tvTrackcount = fd(R.id.tv_trackcount);
-        tvSbcount = fd(R.id.tv_sbcount);
-        tvLastplay = fd(R.id.tv_lastplay);
-        layoutDetail = (ViewGroup) LayoutInflater.from(mActivity).inflate(R.layout.home_layout_album_detail, null);
-        layoutTracks = (ViewGroup) LayoutInflater.from(mActivity).inflate(R.layout.home_layout_album_track, null);
 
-        RecyclerView recyclerView = layoutTracks.findViewById(R.id.recyclerview);
-        refreshLayout = layoutTracks.findViewById(R.id.refreshLayout);
+        mTrackBind = DataBindingUtil.inflate(getLayoutInflater(), R.layout.home_layout_album_track, null, false);
+        mDetailBind = DataBindingUtil.inflate(getLayoutInflater(), R.layout.home_layout_album_detail, null, false);
 
-        RecyclerView rvTag = layoutDetail.findViewById(R.id.rv_tag);
-        rvTag.setLayoutManager(new FlowLayoutManager());
-        rvTag.setHasFixedSize(true);
+
+        mDetailBind.rvTag.setLayoutManager(new FlowLayoutManager());
+        mDetailBind.rvTag.setHasFixedSize(true);
         mAlbumTagAdapter = new AlbumTagAdapter(R.layout.common_item_tag);
-        mAlbumTagAdapter.bindToRecyclerView(rvTag);
+        mAlbumTagAdapter.bindToRecyclerView(mDetailBind.rvTag);
 
 
-        viewpager.setAdapter(new AlbumPagerAdapter());
+        mBinding.viewpager.setAdapter(new AlbumPagerAdapter());
         final CommonNavigator commonNavigator = new CommonNavigator(mActivity);
         commonNavigator.setAdjustMode(true);
-        commonNavigator.setAdapter(new TabNavigatorAdapter(Arrays.asList(tabs), viewpager, 125));
-        magicIndicator.setNavigator(commonNavigator);
-        ViewPagerHelper.bind(magicIndicator, viewpager);
-        viewpager.setCurrentItem(1);
+        commonNavigator.setAdapter(new TabNavigatorAdapter(Arrays.asList(tabs), mBinding.viewpager, 125));
+        mBinding.magicIndicator.setNavigator(commonNavigator);
+        ViewPagerHelper.bind(mBinding.magicIndicator, mBinding.viewpager);
+        mBinding.viewpager.setCurrentItem(1);
 
         mAlbumTrackAdapter = new AlbumTrackAdapter(R.layout.home_item_album_track);
-        recyclerView.setLayoutManager(new LinearLayoutManager(mActivity));
-        recyclerView.setHasFixedSize(true);
-        mAlbumTrackAdapter.bindToRecyclerView(recyclerView);
+        mTrackBind.includeList.recyclerview.setLayoutManager(new LinearLayoutManager(mActivity));
+        mTrackBind.includeList.recyclerview.setHasFixedSize(true);
+        mAlbumTrackAdapter.bindToRecyclerView(mTrackBind.includeList.recyclerview);
         mPagerPopup = new TrackPagerPopup(mActivity, this);
         mPagerPopup.setDismissingListener(this);
     }
@@ -155,10 +129,11 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
         mPlayerManager.addPlayerStatusListener(playerStatusListener);
         mAlbumTrackAdapter.setOnItemClickListener(this);
         mAlbumTrackAdapter.setOnItemChildClickListener(this);
-        layoutDetail.findViewById(R.id.cl_announcer).setOnClickListener(this);
-        layoutTracks.findViewById(R.id.ll_select).setOnClickListener(this);
-        layoutTracks.findViewById(R.id.ll_download).setOnClickListener(this);
-        addDisposable(RxView.clicks(layoutTracks.findViewById(R.id.ll_sort))
+        mDetailBind.includeAnnouncer.clAnnouncer.setOnClickListener(this);
+        mTrackBind.llSelect.setOnClickListener(this);
+        mTrackBind.llDownload.setOnClickListener(this);
+        RxView.clicks(mTrackBind.llSort)
+                .doOnSubscribe(this)
                 .throttleFirst(1, TimeUnit.SECONDS)
                 .subscribe(unit -> {
                     if (mPagerPopup.isShow()) {
@@ -166,47 +141,49 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
                     }
                     mSort = "time_desc".equals(mSort) ? "time_asc" : "time_desc";
                     mViewModel.getTrackList(mSort);
-                }));
-        addDisposable(RxView.clicks(fd(R.id.ll_play))
+                });
+        RxView.clicks(mBinding.llPlay)
                 .throttleFirst(1, TimeUnit.SECONDS)
+                .doOnSubscribe(this)
                 .subscribe(unit -> {
-                    TextView tvPlay = fd(R.id.tv_play);
-                    tvPlay.setText("继续播放");
+                    mBinding.tvPlay.setText("继续播放");
                     if (mLastPlay != null) {
                         int index = mAlbumTrackAdapter.getData().indexOf(mLastPlay);
                         if (index != -1) {
                             mLastPlay = mAlbumTrackAdapter.getItem(index);
-                            fd(R.id.gp_lastplay).setVisibility(View.VISIBLE);
-                            tvLastplay.setText(getString(R.string.lastplay, mLastPlay.getTrackTitle()));
+                            mBinding.gpLastplay.setVisibility(View.VISIBLE);
+                            mBinding.tvLastplay.setText(getString(R.string.lastplay, mLastPlay.getTrackTitle()));
                             XmPlayerManager.getInstance(mActivity).playList(mViewModel.getCommonTrackList(),
                                     index);
-                            navigateTo(AppConstants.Router.Home.F_PLAY_TRACK);
+                            RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
                         } else {
                             mViewModel.getPlayTrackList();
                         }
                     } else {
                         mLastPlay = mAlbumTrackAdapter.getItem(0);
-                        fd(R.id.gp_lastplay).setVisibility(View.VISIBLE);
-                        tvLastplay.setText(getString(R.string.lastplay, mLastPlay.getTrackTitle()));
+                        mBinding.gpLastplay.setVisibility(View.VISIBLE);
+                        mBinding.tvLastplay.setText(getString(R.string.lastplay, mLastPlay.getTrackTitle()));
                         XmPlayerManager.getInstance(mActivity).playList(mViewModel.getCommonTrackList(), 0);
-                        navigateTo(AppConstants.Router.Home.F_PLAY_TRACK);
+                        RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
                     }
-                }));
+                });
 
 
-        addDisposable(RxView.clicks(fd(R.id.ll_subscribe))
+        RxView.clicks(mBinding.llSubscribe)
+                .doOnSubscribe(this)
                 .throttleFirst(1, TimeUnit.SECONDS)
-                .subscribe(unit -> mViewModel.subscribe(mAlbum)));
-        addDisposable(RxView.clicks(fd(R.id.ll_unsubscribe))
+                .subscribe(unit -> mViewModel.subscribe(mAlbum));
+        RxView.clicks(mBinding.llUnsubscribe)
+                .doOnSubscribe(this)
                 .throttleFirst(1, TimeUnit.SECONDS)
-                .subscribe(unit -> mViewModel.unsubscribe(mAlbum)));
+                .subscribe(unit -> mViewModel.unsubscribe(mAlbum));
     }
 
 
     @NonNull
     @Override
     protected WrapRefresh onBindWrapRefresh() {
-        return new WrapRefresh(refreshLayout, mAlbumTrackAdapter);
+        return new WrapRefresh(mTrackBind.includeList.refreshLayout, mAlbumTrackAdapter);
     }
 
     @Override
@@ -219,26 +196,26 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     @Override
     public void initViewObservable() {
         mViewModel.getSubscribeEvent().observe(this, aBoolean -> {
-            fd(R.id.ll_subscribe).setVisibility(aBoolean ? View.GONE : View.VISIBLE);
-            fd(R.id.ll_unsubscribe).setVisibility(aBoolean ? View.VISIBLE : View.GONE);
+            mBinding.llSubscribe.setVisibility(aBoolean ? View.GONE : View.VISIBLE);
+            mBinding.llUnsubscribe.setVisibility(aBoolean ? View.VISIBLE : View.GONE);
         });
 
         mViewModel.getAlbumEvent().observe(this, album -> {
             mAlbum = album;
-            Glide.with(mActivity).load(mAlbum.getCoverUrlMiddle()).into(ivCover);
-            tvAlbum.setText(mAlbum.getAlbumTitle());
-            tvAuthor.setText((String.format(getResources().getString(R.string.zhubo),
+            Glide.with(mActivity).load(mAlbum.getCoverUrlMiddle()).into(mBinding.ivCover);
+            mBinding.tvAlbum.setText(mAlbum.getAlbumTitle());
+            mBinding.tvAuthor.setText((String.format(getResources().getString(R.string.zhubo),
                     mAlbum.getAnnouncer().getNickname())));
-            tvPlaycount.setText(String.format(getResources().getString(R.string.ci)
+            mBinding.tvPlaycount.setText(String.format(getResources().getString(R.string.ci)
                     , ZhumulangmaUtil.toWanYi(mAlbum.getPlayCount())));
-            tvTrackcount.setText(String.format(getResources().getString(R.string.gong_ji),
+            mBinding.tvTrackcount.setText(String.format(getResources().getString(R.string.gong_ji),
                     mAlbum.getIncludeTrackCount()));
-            tvSbcount.setText(String.format(getResources().getString(R.string.sb)
+            mBinding.tvSbcount.setText(String.format(getResources().getString(R.string.sb)
                     , ZhumulangmaUtil.toWanYi(mAlbum.getSubscribeCount())));
 
-            Glide.with(this).load(album.getAnnouncer().getAvatarUrl()).into((ImageView) fd(R.id.iv_announcer_cover));
-            ((TextView) layoutDetail.findViewById(R.id.tv_announcer_name)).setText(album.getAnnouncer().getNickname());
-            ((TextView) layoutDetail.findViewById(R.id.tv_intro)).setText(album.getAlbumIntro());
+            Glide.with(this).load(album.getAnnouncer().getAvatarUrl()).into(mDetailBind.includeAnnouncer.ivAnnouncerCover);
+            mDetailBind.includeAnnouncer.tvAnnouncerName.setText(album.getAnnouncer().getNickname());
+            mDetailBind.tvIntro.setText(album.getAlbumIntro());
             if (!TextUtils.isEmpty(album.getAlbumTags())) {
                 mAlbumTagAdapter.addData(Arrays.asList(album.getAlbumTags().split(",")));
             }
@@ -253,7 +230,7 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
             mAlbumTrackAdapter.setNewData(tracks.getTracks());
             XmPlayerManager.getInstance(mActivity).playList(mViewModel.getCommonTrackList(),
                     mAlbumTrackAdapter.getData().indexOf(mLastPlay));
-            navigateTo(AppConstants.Router.Home.F_PLAY_TRACK);
+            RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
         });
 
         mViewModel.getTracksSortEvent().observe(this, tracks -> {
@@ -266,22 +243,22 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
         });
         mViewModel.getLastplayEvent().observe(this, track -> {
             if (null != track) {
-                tvPlay.setText("继续播放");
+                mBinding.tvPlay.setText("继续播放");
                 mLastPlay = track;
-                fd(R.id.gp_lastplay).setVisibility(View.VISIBLE);
-                tvLastplay.setText(getString(R.string.lastplay, track.getTrackTitle()));
+                mBinding.gpLastplay.setVisibility(View.VISIBLE);
+                mBinding.tvLastplay.setText(getString(R.string.lastplay, track.getTrackTitle()));
             }
         });
         mViewModel.getAnnouncerEvent().observe(this, announcer -> {
-            fd(R.id.tv_vip).setVisibility(announcer.isVerified() ? View.VISIBLE : View.GONE);
+            mDetailBind.includeAnnouncer.tvVip.setVisibility(announcer.isVerified() ? View.VISIBLE : View.GONE);
             String vsignature = announcer.getVsignature();
             if (TextUtils.isEmpty(vsignature)) {
-                layoutDetail.findViewById(R.id.tv_vsignature).setVisibility(View.GONE);
+                mDetailBind.includeAnnouncer.tvVsignature.setVisibility(View.GONE);
             } else {
-                layoutDetail.findViewById(R.id.tv_vsignature).setVisibility(View.VISIBLE);
-                ((TextView) layoutDetail.findViewById(R.id.tv_vsignature)).setText(vsignature);
+                mDetailBind.includeAnnouncer.tvVsignature.setVisibility(View.VISIBLE);
+                mDetailBind.includeAnnouncer.tvVsignature.setText(vsignature);
             }
-            ((TextView) layoutDetail.findViewById(R.id.tv_following_count)).setText(getString(R.string.following_count,
+            mDetailBind.includeAnnouncer.tvFollowingCount.setText(getString(R.string.following_count,
                     ZhumulangmaUtil.toWanYi(announcer.getFollowerCount())));
         });
     }
@@ -296,9 +273,9 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
         if (adapter == mAlbumTrackAdapter) {
             mPlayerManager.playList(mViewModel.getCommonTrackList(), position);
             mLastPlay = mAlbumTrackAdapter.getItem(position);
-            fd(R.id.gp_lastplay).setVisibility(View.VISIBLE);
-            tvLastplay.setText(getString(R.string.lastplay, mAlbumTrackAdapter.getItem(position).getTrackTitle()));
-            navigateTo(AppConstants.Router.Home.F_PLAY_TRACK);
+            mBinding.gpLastplay.setVisibility(View.VISIBLE);
+            mBinding.tvLastplay.setText(getString(R.string.lastplay, mAlbumTrackAdapter.getItem(position).getTrackTitle()));
+            RouterUtil.navigateTo(Constants.Router.Home.F_PLAY_TRACK);
         } else {
             mPagerPopup.dismissWith(() -> mViewModel.getTrackList(position + 1));
         }
@@ -344,21 +321,15 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     @Override
     public void onClick(View v) {
         int id = v.getId();
-        if (R.id.ll_select == id || R.id.fl_mask == id) {
+        if (R.id.ll_select == id) {
             switchPager();
         } else if (id == R.id.ll_download) {
-            Object navigation = ARouter.getInstance().build(AppConstants.Router.Home.F_BATCH_DOWNLOAD)
-                    .withLong(KeyCode.Home.ALBUMID, mAlbumId)
-                    .navigation();
-            EventBus.getDefault().post(new ActivityEvent(
-                    EventCode.Main.NAVIGATE, new NavigateBean(AppConstants.Router.Home.F_BATCH_DOWNLOAD, (ISupportFragment) navigation)));
+            RouterUtil.navigateTo(mRouter.build(Constants.Router.Home.F_BATCH_DOWNLOAD)
+                    .withLong(KeyCode.Home.ALBUMID, mAlbumId));
         } else if (id == R.id.cl_announcer) {
-            Object navigation = ARouter.getInstance().build(AppConstants.Router.Home.F_ANNOUNCER_DETAIL)
+            RouterUtil.navigateTo(mRouter.build(Constants.Router.Home.F_ANNOUNCER_DETAIL)
                     .withLong(KeyCode.Home.ANNOUNCER_ID, mAlbum.getAnnouncer().getAnnouncerId())
-                    .withString(KeyCode.Home.ANNOUNCER_NAME, mAlbum.getAnnouncer().getNickname())
-                    .navigation();
-            EventBus.getDefault().post(new ActivityEvent(
-                    EventCode.Main.NAVIGATE, new NavigateBean(AppConstants.Router.Home.F_ANNOUNCER_DETAIL, (ISupportFragment) navigation)));
+                    .withString(KeyCode.Home.ANNOUNCER_NAME, mAlbum.getAnnouncer().getNickname()));
         }
     }
 
@@ -374,12 +345,12 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     }
 
     @Override
-    protected String[] onBindBarTitleText() {
+    public String[] onBindBarTitleText() {
         return new String[]{"专辑详情"};
     }
 
     @Override
-    protected Integer[] onBindBarRightIcon() {
+    public Integer[] onBindBarRightIcon() {
         return new Integer[]{R.drawable.ic_common_more, R.drawable.ic_common_share};
     }
 
@@ -394,7 +365,7 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     }
 
     @Override
-    protected void onRight2Click(View v) {
+    public void onRight2Click(View v) {
         super.onRight2Click(v);
         EventBus.getDefault().post(new ActivityEvent(EventCode.Main.SHARE));
     }
@@ -405,8 +376,8 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     }
 
     @Override
-    protected com.kingja.loadsir.callback.Callback getInitCallBack() {
-        return new DetailCallback();
+    public com.kingja.loadsir.callback.Callback getInitStatus() {
+        return new DetailSkeleton();
     }
 
     /**
@@ -417,7 +388,7 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
     private void setPager(long totalcount) {
         int pagesize = 20;
 
-        ((TextView) fd(R.id.tv_pagecount)).setText(getString(R.string.pagecount, totalcount));
+        mTrackBind.tvPagecount.setText(getString(R.string.pagecount, totalcount));
         List<String> list = new ArrayList<>();
         if (mSort.equals("time_desc")) {
             for (int i = 0; i < totalcount / pagesize; i++) {
@@ -496,8 +467,8 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
 
         if (mAlbumId == track.getAlbum().getAlbumId()) {
             mLastPlay = track;
-            fd(R.id.gp_lastplay).setVisibility(View.VISIBLE);
-            tvLastplay.setText(getString(R.string.lastplay, mLastPlay.getTrackTitle()));
+            mBinding.gpLastplay.setVisibility(View.VISIBLE);
+            mBinding.tvLastplay.setText(getString(R.string.lastplay, mLastPlay.getTrackTitle()));
         }
         for (int i = 0; i < tracks.size(); i++) {
             LottieAnimationView lavPlaying = (LottieAnimationView) mAlbumTrackAdapter
@@ -532,8 +503,9 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
         int index = mAlbumTrackAdapter.getData().indexOf(track);
         if (index != -1) {
             TextView tvHasplay = (TextView) mAlbumTrackAdapter.getViewByPosition(index, R.id.tv_hasplay);
+            mAlbumTrackAdapter.getItem(index).setSource(100 * currPos / duration);
             if (null != tvHasplay && mAlbumTrackAdapter.getItem(index).getDataId() == track.getDataId()) {
-                tvHasplay.setText(getString(R.string.hasplay, 100 * currPos / duration));
+                tvHasplay.setText(getString(R.string.hasplay, mAlbumTrackAdapter.getItem(index).getSource()));
             } else {
                 mAlbumTrackAdapter.notifyItemChanged(index);
             }
@@ -548,8 +520,8 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
         if (mPagerPopup.isShow()) {
             mPagerPopup.dismiss();
         } else {
-            fd(R.id.iv_select_page).animate().rotation(-90).setDuration(200);
-            new XPopup.Builder(mActivity).atView(layoutTracks.findViewById(R.id.cl_actionbar)).setPopupCallback(new SimpleCallback() {
+            mTrackBind.ivSelectPage.animate().rotation(-90).setDuration(200);
+            new XPopup.Builder(mActivity).atView(mTrackBind.clActionbar).setPopupCallback(new SimpleCallback() {
                 @Override
                 public void onCreated() {
                     super.onCreated();
@@ -580,10 +552,10 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
             TextView viewByPosition = (TextView) mPagerPopup.getPagerAdapter().getViewByPosition(i, R.id.tv_page);
             if (viewByPosition != null) {
                 if (mViewModel.getUpTrackPage() <= i && i <= mViewModel.getCurTrackPage() - 2) {
-                    viewByPosition.setBackgroundResource(R.drawable.shap_common_primary);
+                    viewByPosition.setBackgroundResource(R.drawable.shap_home_pager_selected);
                     viewByPosition.setTextColor(Color.WHITE);
                 } else {
-                    viewByPosition.setBackgroundResource(R.drawable.shap_common_defualt);
+                    viewByPosition.setBackgroundResource(R.drawable.shap_home_pager_defualt);
                     viewByPosition.setTextColor(getResources().getColor(R.color.textColorPrimary));
                 }
             } else {
@@ -706,7 +678,7 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
 
     @Override
     public void onDismissing() {
-        fd(R.id.iv_select_page).animate().rotation(90).setDuration(200);
+        mTrackBind.ivSelectPage.animate().rotation(90).setDuration(200);
     }
 
     class AlbumPagerAdapter extends PagerAdapter {
@@ -718,7 +690,7 @@ public class AlbumDetailFragment extends BaseRefreshMvvmFragment<AlbumDetailView
         @NonNull
         @Override
         public Object instantiateItem(@NonNull ViewGroup container, int position) {
-            View view = position == 0 ? layoutDetail : layoutTracks;
+            View view = position == 0 ? mDetailBind.getRoot() : mTrackBind.getRoot();
             container.addView(view);
             return view;
         }

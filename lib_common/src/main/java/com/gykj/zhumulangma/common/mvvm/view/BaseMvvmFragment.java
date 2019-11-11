@@ -3,6 +3,8 @@ package com.gykj.zhumulangma.common.mvvm.view;
 import android.arch.lifecycle.Observer;
 import android.arch.lifecycle.ViewModelProvider;
 import android.arch.lifecycle.ViewModelProviders;
+import android.databinding.ViewDataBinding;
+import android.support.annotation.CallSuper;
 
 import com.gykj.zhumulangma.common.mvvm.viewmodel.BaseViewModel;
 
@@ -13,18 +15,20 @@ import com.gykj.zhumulangma.common.mvvm.viewmodel.BaseViewModel;
  * <br/>Email: 1071931588@qq.com
  * <br/>Description:MvvmFragment基类
  */
-public abstract class BaseMvvmFragment<VM extends BaseViewModel> extends BaseFragment {
+public abstract class BaseMvvmFragment<DB extends ViewDataBinding,VM extends BaseViewModel> extends BaseFragment<DB> {
     protected VM mViewModel;
+
     protected void initParam() {
         initViewModel();
         initBaseViewObservable();
         initViewObservable();
     }
-
+    @CallSuper
     @Override
     protected void loadView() {
         super.loadView();
-       showInitView();
+        //默认显示初始化视图
+        showInitView();
     }
 
     protected void initViewModel() {
@@ -32,11 +36,14 @@ public abstract class BaseMvvmFragment<VM extends BaseViewModel> extends BaseFra
         getLifecycle().addObserver(mViewModel);
     }
 
-    protected VM createViewModel(){
-        return ViewModelProviders.of(this,onBindViewModelFactory()).get(onBindViewModel());
+    protected VM createViewModel() {
+        return ViewModelProviders.of(this, onBindViewModelFactory()).get(onBindViewModel());
     }
+
     protected abstract Class<VM> onBindViewModel();
+
     protected abstract ViewModelProvider.Factory onBindViewModelFactory();
+
     protected abstract void initViewObservable();
 
     protected void initBaseViewObservable() {
